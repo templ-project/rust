@@ -1,0 +1,5 @@
+#!/bin/sh
+
+mise exec -- task format lint duplicate-check license-check audit
+
+git add .

@@ -5,7 +5,6 @@ vars:
     sh: |
       echo '{{if eq OS "windows"}}powershell -ExecutionPolicy Bypass -Command{{else}}bash -c{{end}}'
   __TF_HEADER_LINE: "=============================================================="
-
   RUST_PROJECT_NAME: '{{default .RUST_PROJECT_NAME "rust-template"}}'
   RUST_BUILD_TYPE: '{{default .RUST_BUILD_TYPE "release"}}'
 
@@ -17,29 +16,29 @@ tasks:
   print:env:
     desc: "Print current build environment variables"
     cmds:
-    - cmd: env
-      platforms: [ darwin, linux ]
-    - cmd: powershell -Command "Get-ChildItem Env:"
-      platforms: [ windows ]
+      - cmd: env
+        platforms: [darwin, linux]
+      - cmd: powershell -Command "Get-ChildItem Env:"
+        platforms: [windows]
 
   build:
     desc: "Build project (type: {{.RUST_BUILD_TYPE}})"
     cmds:
-    - cmd: |
-        echo "{{.__TF_HEADER_LINE}}"
-        echo "Building {{.RUST_PROJECT_NAME}} for {{OS}}/{{ARCH}} in {{.RUST_BUILD_TYPE}} mode"
-        echo "{{.__TF_HEADER_LINE}}"
-    - task: print:env
-    - |
-      {{if eq .RUST_BUILD_TYPE "release"}}
-      cargo build --release
-      {{else}}
-      cargo build
-      {{end}}
+      - cmd: |
+          echo "{{.__TF_HEADER_LINE}}"
+          echo "Building {{.RUST_PROJECT_NAME}} for {{OS}}/{{ARCH}} in {{.RUST_BUILD_TYPE}} mode"
+          echo "{{.__TF_HEADER_LINE}}"
+      - task: print:env
+      - |
+        {{if eq .RUST_BUILD_TYPE "release"}}
+        cargo build --release
+        {{else}}
+        cargo build
+        {{end}}
     sources:
-    - src/**/*.rs
-    - tests/**/*.rs
-    - Cargo.toml
+      - src/**/*.rs
+      - tests/**/*.rs
+      - Cargo.toml
 
   # ============================================================================
   # Clean Tasks
@@ -48,15 +47,15 @@ tasks:
   clean:
     desc: "Clean all build artifacts"
     cmds:
-    - |
-      rm -rf \
-          .coverage \
-          .jscpd/html \
-          .task \
-          coverage \
-          node_modules \
-          package-lock.json \
-          target
+      - |
+        rm -rf \
+            .coverage \
+            .jscpd/html \
+            .task \
+            coverage \
+            node_modules \
+            package-lock.json \
+            target
 
   # ============================================================================
   # Code Quality Tasks
@@ -65,30 +64,81 @@ tasks:
   format:
     desc: "Format code and fix issues"
     cmds:
-    - cargo fmt --all
+      - cargo fmt --all
 
   format:check:
     desc: "Check code formatting without fixing"
     cmds:
-    - cargo fmt --all -- --check
+      - cargo fmt --all -- --check
 
   lint:
     desc: "Run linter and fix issues"
     cmds:
-    - cargo clippy --fix --allow-dirty --allow-staged --all-features -- -W clippy::all -W clippy::pedantic -A clippy::module-name-repetitions -A clippy::missing-const-for-fn -D warnings
+      - cargo clippy --fix --allow-dirty --allow-staged --all-features -- -W clippy::all -W clippy::pedantic -A clippy::module-name-repetitions -A clippy::missing-const-for-fn -D warnings
 
   lint:check:
     desc: "Run linter without fixing"
     cmds:
-    - cargo clippy --all-features -- -W clippy::all -W clippy::pedantic -A clippy::module-name-repetitions -A clippy::missing-const-for-fn -D warnings
+      - cargo clippy --all-features -- -W clippy::all -W clippy::pedantic -A clippy::module-name-repetitions -A clippy::missing-const-for-fn -D warnings
 
   duplicate-check:
     desc: "Check for duplicate code using jscpd"
     cmds:
-    - |
-      [ ! -d ./node_modules ] && npm install jscpd @jscpd/badge-reporter
-      npx jscpd src/
-      git add .jscpd/jscpd-badge.svg 2>/dev/null || true
+      - |
+        [ ! -d ./node_modules ] && npm install jscpd @jscpd/badge-reporter
+        npx jscpd src/
+        git add .jscpd/jscpd-badge.svg 2>/dev/null || true
+
+  audit:
+    desc: "Check for security vulnerabilities in dependencies"
+    cmds:
+      - cmd: |
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            echo "⚠️ cargo-audit not found. Installing..."
+            cargo install cargo-audit
+          fi
+          echo "🔍 Running security audit..."
+          # Clean up corrupted advisory database if it exists
+          if [ -d "$HOME/.cargo/advisory-db" ] && [ ! -d "$HOME/.cargo/advisory-db/.git" ]; then
+            echo "🧹 Cleaning corrupted advisory database..."
+            rm -rf "$HOME/.cargo/advisory-db"
+          fi
+          cargo audit
+        platforms: [darwin, linux]
+      - cmd: |
+          if (!(Get-Command cargo-audit -ErrorAction SilentlyContinue)) {
+            Write-Host "⚠️ cargo-audit not found. Installing..."
+            cargo install cargo-audit
+          }
+          Write-Host "🔍 Running security audit..."
+          # Clean up corrupted advisory database if it exists
+          $advisoryDb = "$env:USERPROFILE\.cargo\advisory-db"
+          if ((Test-Path $advisoryDb) -and !(Test-Path "$advisoryDb\.git")) {
+            Write-Host "🧹 Cleaning corrupted advisory database..."
+            Remove-Item -Recurse -Force $advisoryDb
+          }
+          cargo audit
+        platforms: [windows]
+
+  license-check:
+    desc: "Check license compliance and security advisories"
+    cmds:
+      - cmd: |
+          if ! command -v cargo-deny >/dev/null 2>&1; then
+            echo "⚠️ cargo-deny not found. Installing..."
+            cargo install cargo-deny
+          fi
+          echo "📋 Checking licenses and advisories..."
+          cargo deny check
+        platforms: [darwin, linux]
+      - cmd: |
+          if (!(Get-Command cargo-deny -ErrorAction SilentlyContinue)) {
+            Write-Host "⚠️ cargo-deny not found. Installing..."
+            cargo install cargo-deny
+          }
+          Write-Host "📋 Checking licenses and advisories..."
+          cargo deny check
+        platforms: [windows]
 
   # ============================================================================
   # Test Tasks
@@ -97,75 +147,75 @@ tasks:
   test:
     desc: "Run tests with coverage"
     cmds:
-    - task: build
-      vars:
-        RUST_BUILD_TYPE: "debug"
-    - cargo test --all-features
-    - task: test:gen-coverage
+      - task: build
+        vars:
+          RUST_BUILD_TYPE: "debug"
+      - cargo test --all-features
+      - task: test:gen-coverage
 
   test:gen-coverage:
     desc: "Generate coverage report"
     cmds:
-    - cmd: |
-        echo ""
-        echo "📊 Generating coverage report..."
-        echo ""
-    - cmd: |
-        if ! command -v cargo-tarpaulin >/dev/null 2>&1; then
-          echo "⚠️ cargo-tarpaulin not found. Install with:"
-          echo "   cargo install cargo-tarpaulin"
-          echo "   or via mise: mise exec -- cargo install cargo-tarpaulin"
+      - cmd: |
           echo ""
-          exit 0
-        fi
+          echo "📊 Generating coverage report..."
+          echo ""
+      - cmd: |
+          if ! command -v cargo-tarpaulin >/dev/null 2>&1; then
+            echo "⚠️ cargo-tarpaulin not found. Install with:"
+            echo "   cargo install cargo-tarpaulin"
+            echo "   or via mise: mise exec -- cargo install cargo-tarpaulin"
+            echo ""
+            exit 0
+          fi
 
-        echo "📊 Running tests with coverage..."
-        cargo tarpaulin \
-          --out Html \
-          --out Lcov \
-          --out Stdout \
-          --output-dir .coverage \
-          --exclude-files "tests/*" \
-          --all-features
+          echo "📊 Running tests with coverage..."
+          cargo tarpaulin \
+            --out Html \
+            --out Lcov \
+            --out Stdout \
+            --output-dir .coverage \
+            --exclude-files "tests/*" \
+            --all-features
 
-        echo ""
-        if [ -f ".coverage/index.html" ]; then
-          echo "✅ HTML coverage report: .coverage/index.html"
-        fi
+          echo ""
+          if [ -f ".coverage/index.html" ]; then
+            echo "✅ HTML coverage report: .coverage/index.html"
+          fi
 
-        if [ -f ".coverage/lcov.info" ]; then
-          echo "✅ LCOV coverage data: .coverage/lcov.info"
-        fi
-        echo ""
-      platforms: [ darwin, linux ]
-    - cmd: |
-        if (!(Get-Command cargo-tarpaulin -ErrorAction SilentlyContinue)) {
-          Write-Host "⚠️ cargo-tarpaulin not found. Install with:"
-          Write-Host "   cargo install cargo-tarpaulin"
-          Write-Host "   or via mise: mise exec -- cargo install cargo-tarpaulin"
+          if [ -f ".coverage/lcov.info" ]; then
+            echo "✅ LCOV coverage data: .coverage/lcov.info"
+          fi
+          echo ""
+        platforms: [darwin, linux]
+      - cmd: |
+          if (!(Get-Command cargo-tarpaulin -ErrorAction SilentlyContinue)) {
+            Write-Host "⚠️ cargo-tarpaulin not found. Install with:"
+            Write-Host "   cargo install cargo-tarpaulin"
+            Write-Host "   or via mise: mise exec -- cargo install cargo-tarpaulin"
+            Write-Host ""
+            exit 0
+          }
+
+          Write-Host "📊 Running tests with coverage..."
+          cargo tarpaulin `
+            --out Html `
+            --out Lcov `
+            --out Stdout `
+            --output-dir .coverage `
+            --exclude-files "tests/*" `
+            --all-features
+
           Write-Host ""
-          exit 0
-        }
+          if (Test-Path ".coverage/index.html") {
+            Write-Host "✅ HTML coverage report: .coverage/index.html"
+          }
 
-        Write-Host "📊 Running tests with coverage..."
-        cargo tarpaulin `
-          --out Html `
-          --out Lcov `
-          --out Stdout `
-          --output-dir .coverage `
-          --exclude-files "tests/*" `
-          --all-features
-
-        Write-Host ""
-        if (Test-Path ".coverage/index.html") {
-          Write-Host "✅ HTML coverage report: .coverage/index.html"
-        }
-
-        if (Test-Path ".coverage/lcov.info") {
-          Write-Host "✅ LCOV coverage data: .coverage/lcov.info"
-        }
-        Write-Host ""
-      platforms: [ windows ]
+          if (Test-Path ".coverage/lcov.info") {
+            Write-Host "✅ LCOV coverage data: .coverage/lcov.info"
+          }
+          Write-Host ""
+        platforms: [windows]
     silent: true
 
   # ============================================================================
@@ -175,40 +225,40 @@ tasks:
   run:
     desc: "Run application"
     deps:
-    - task: build
-      vars:
-        RUST_BUILD_TYPE: "debug"
+      - task: build
+        vars:
+          RUST_BUILD_TYPE: "debug"
     cmds:
-    - |
-      echo "🏃 Running application..."
-      cargo run
+      - |
+        echo "🏃 Running application..."
+        cargo run
 
   debug:
     desc: "Run application with debugger (gdb/lldb)"
     cmds:
-    - task: build
-      vars:
-        RUST_BUILD_TYPE: "debug"
-    - cmd: |
-        {{if eq OS "windows"}}
-        echo "⚠️ CLI debugging not supported on Windows."
-        echo "ℹ️ Please use Visual Studio Code or your IDE's debugger instead."
-        echo ""
-        echo "Alternatively, install gdb via MSYS2 and run manually:"
-        echo "gdb target/debug/{{.RUST_PROJECT_NAME}}.exe"
-        exit 0
-        {{else}}
-        if command -v lldb >/dev/null 2>&1; then
-          echo "🐛 Starting lldb debugger..."
-          lldb target/debug/{{.RUST_PROJECT_NAME}}
-        elif command -v gdb >/dev/null 2>&1; then
-          echo "🐛 Starting gdb debugger..."
-          gdb target/debug/{{.RUST_PROJECT_NAME}}
-        else
-          echo "⚠️ No debugger found. Please install gdb or lldb."
-          exit 1
-        fi
-        {{end}}
+      - task: build
+        vars:
+          RUST_BUILD_TYPE: "debug"
+      - cmd: |
+          {{if eq OS "windows"}}
+          echo "⚠️ CLI debugging not supported on Windows."
+          echo "ℹ️ Please use Visual Studio Code or your IDE's debugger instead."
+          echo ""
+          echo "Alternatively, install gdb via MSYS2 and run manually:"
+          echo "gdb target/debug/{{.RUST_PROJECT_NAME}}.exe"
+          exit 0
+          {{else}}
+          if command -v lldb >/dev/null 2>&1; then
+            echo "🐛 Starting lldb debugger..."
+            lldb target/debug/{{.RUST_PROJECT_NAME}}
+          elif command -v gdb >/dev/null 2>&1; then
+            echo "🐛 Starting gdb debugger..."
+            gdb target/debug/{{.RUST_PROJECT_NAME}}
+          else
+            echo "⚠️ No debugger found. Please install gdb or lldb."
+            exit 1
+          fi
+          {{end}}
 
   # ============================================================================
   # Documentation Tasks
@@ -217,12 +267,12 @@ tasks:
   docs:
     desc: "Build and open documentation"
     cmds:
-    - cargo doc --open --no-deps --all-features
+      - cargo doc --open --no-deps --all-features
 
   docs:build:
     desc: "Build documentation without opening"
     cmds:
-    - cargo doc --no-deps --all-features
+      - cargo doc --no-deps --all-features
 
   # ============================================================================
   # Validation Tasks
@@ -231,14 +281,14 @@ tasks:
   validate:
     desc: "Run all quality checks"
     cmds:
-    - task: format:check
-    - task: lint:check
-    - task: duplicate-check
-    - task: test
-    - cmd: |
-        echo ""
-        echo "{{.__TF_HEADER_LINE}}"
-        echo "✅ All validation checks passed"
-        echo "{{.__TF_HEADER_LINE}}"
-        echo ""
+      - task: format:check
+      - task: lint:check
+      - task: duplicate-check
+      - task: test
+      - cmd: |
+          echo ""
+          echo "{{.__TF_HEADER_LINE}}"
+          echo "✅ All validation checks passed"
+          echo "{{.__TF_HEADER_LINE}}"
+          echo ""
     silent: false

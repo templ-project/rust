@@ -32,6 +32,11 @@ path = "src/lib.rs"
 # Test utilities
 # For property-based testing: proptest = "1.0"
 
+# Git hooks
+cargo-husky = { version = "1", default-features = false, features = [
+    "user-hooks",
+] }
+
 [profile.dev]
 opt-level = 0
 debug = true
