@@ -1,0 +1,144 @@
+name: CI » Validate & Build
+
+on:
+    workflow_call:
+        inputs:
+            os:
+                description: "Operating system to run on"
+                required: false
+                type: string
+                default: "ubuntu-latest"
+
+jobs:
+    # Setup job runs once to populate mise cache for parallel jobs
+    setup:
+        runs-on: ${{ inputs.os }}
+        steps:
+            - uses: actions/checkout@v4
+            - uses: ./.github/actions/setup-tools
+
+    build:
+        runs-on: ${{ inputs.os }}
+        needs: [setup]
+        strategy:
+            matrix:
+                profile:
+                    - debug
+                    - release
+                task_manager:
+                    - task
+        steps:
+            - uses: actions/checkout@v4
+            - uses: ./.github/actions/setup-tools
+
+            - name: Build (${{ matrix.profile }})
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  PYTHONIOENCODING: utf-8
+              run: |
+                  if [[ "${{ matrix.task_manager }}" == "task" ]]; then
+                    mise exec -- task build
+                  else
+                    mise exec -- cargo build ${{ matrix.profile == 'release' && '--release' || '' }}
+                  fi
+              shell: bash
+
+    lint:
+        runs-on: ${{ inputs.os }}
+        needs: [setup, build]
+        strategy:
+            matrix:
+                task_manager:
+                    - task
+        steps:
+            - uses: actions/checkout@v4
+            - uses: ./.github/actions/setup-tools
+
+            - name: Check Code Formatting
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  PYTHONIOENCODING: utf-8
+              run: |
+                  if [[ "${{ matrix.task_manager }}" == "task" ]]; then
+                    mise exec -- task format:check
+                  else
+                    mise exec -- cargo fmt --check
+                  fi
+              shell: bash
+
+            - name: Lint Code
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  PYTHONIOENCODING: utf-8
+              run: |
+                  if [[ "${{ matrix.task_manager }}" == "task" ]]; then
+                    mise exec -- task lint
+                  else
+                    mise exec -- cargo clippy --all-features -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
+                  fi
+              shell: bash
+
+    test:
+        runs-on: ${{ inputs.os }}
+        needs: [setup, lint]
+        strategy:
+            matrix:
+                task_manager:
+                    - task
+        steps:
+            - uses: actions/checkout@v4
+            - uses: ./.github/actions/setup-tools
+
+            - name: Run Tests
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  PYTHONIOENCODING: utf-8
+              run: |
+                  if [[ "${{ matrix.task_manager }}" == "task" ]]; then
+                    mise exec -- task test
+                  else
+                    mise exec -- cargo test --verbose
+                  fi
+              shell: bash
+
+            - name: Run Tests with Coverage
+              if: ${{ inputs.os == 'ubuntu-latest' }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  PYTHONIOENCODING: utf-8
+              run: |
+                  # Install cargo-tarpaulin if not cached
+                  if ! command -v cargo-tarpaulin &> /dev/null; then
+                    cargo install cargo-tarpaulin
+                  fi
+
+                  if [[ "${{ matrix.task_manager }}" == "task" ]]; then
+                    mise exec -- task test:coverage
+                  else
+                    mise exec -- cargo tarpaulin --out Stdout --out Xml --verbose
+                  fi
+              shell: bash
+
+            - name: Upload coverage to Codecov
+              if: ${{ inputs.os == 'ubuntu-latest' }}
+              uses: codecov/codecov-action@v4
+              with:
+                  files: ./cobertura.xml
+                  fail_ci_if_error: false
+
+    duplicate-check:
+        if: ${{ inputs.os == 'ubuntu-latest' }}
+        runs-on: ${{ inputs.os }}
+        needs: [setup]
+        steps:
+            - uses: actions/setup-node@v5
+              with:
+                  node-version: 22
+
+            - uses: go-task/setup-task@v1
+
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Run duplicate check
+              run: task duplicate-check

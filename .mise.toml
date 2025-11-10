@@ -1,0 +1,57 @@
+# mise configuration for Rust project
+# https://mise.jdx.dev/
+
+[tools]
+# Rust toolchain version (using latest stable)
+rust = "latest"
+
+node = "24"
+
+# Cargo tools (install via cargo)
+# Note: cargo-tarpaulin requires system dependencies to be installed first:
+#   Ubuntu/Debian: sudo apt install pkg-config libssl-dev
+#   Fedora/RHEL:   sudo dnf install pkg-config openssl-devel
+#   macOS:         brew install pkg-config openssl
+#
+# After installing system dependencies, run:
+#   cargo install cargo-tarpaulin
+#
+# Uncomment to install via mise (requires system deps first):
+"cargo:cargo-tarpaulin" = "latest"
+
+# Other useful tools:
+# "cargo:cargo-watch" = "latest"
+# "cargo:cargo-audit" = "latest"
+# "cargo:cargo-outdated" = "latest"
+# "cargo:cargo-bloat" = "latest"
+
+# Task runner (if not using system-installed Task)
+# "npm:@go-task/cli" = "latest"
+
+# Code duplication detection
+# "npm:jscpd" = "latest"
+
+[env]
+# Environment variables
+# RUST_BACKTRACE = "1"
+# RUST_LOG = "debug"
+
+[tasks]
+# Custom tasks (alternative to Taskfile.yml)
+# dev = "cargo watch -x run"
+# test = "cargo test"
+# lint = "cargo clippy -- -D warnings"
+
+# Installation instructions for tools:
+#
+# After creating this file, install tools with:
+#   mise install
+#
+# Activate mise in your shell:
+#   eval "$(mise activate bash)"   # or zsh, fish, etc.
+#
+# To add a cargo tool:
+#   mise use cargo:cargo-watch@latest
+#
+# To add an npm tool:
+#   mise use npm:jscpd@latest

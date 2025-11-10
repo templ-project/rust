@@ -1,0 +1,81 @@
+name: "Setup Development Tools"
+description: "Install Task, mise, and Rust toolchain with caching"
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Task
+      uses: go-task/setup-task@v1
+
+    - name: Install Mise (Darwin & Linux)
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      if: ${{ runner.os != 'Windows' }}
+      shell: bash
+      run: |
+        curl https://mise.run | sh
+        echo "eval \"\$(~/.local/bin/mise activate bash)\"" >> ~/.bashrc
+        mise activate
+
+    - name: Install Mise (Windows)
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      if: ${{ runner.os == 'Windows' }}
+      shell: pwsh
+      run: |
+        choco install mise -y --force --no-progress
+
+    - name: Update Mise
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      shell: bash
+      run: |
+        mise self-update
+        mise --version
+
+    - uses: actions/cache@v4
+      if: ${{ runner.os != 'Windows' }}
+      with:
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-tools-${{ hashFiles('.mise.lock', '.mise.toml') }}
+        path: |
+          ~/.local/share/mise
+          ~/.cache/mise
+
+    - uses: actions/cache@v4
+      if: ${{ runner.os == 'Windows' }}
+      with:
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-tools-${{ hashFiles('.mise.lock', '.mise.toml') }}
+        path: |
+          ~\AppData\Local\mise\installs
+          ~\.cache\mise
+
+    - uses: actions/cache@v4
+      with:
+        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        path: |
+          ~/.cargo/bin
+          ~/.cargo/registry
+          ~/.cargo/git
+
+    - name: Install system dependencies (Linux)
+      if: ${{ runner.os == 'Linux' }}
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config libssl-dev
+
+    - name: Install system dependencies (macOS)
+      if: ${{ runner.os == 'macOS' }}
+      shell: bash
+      run: |
+        brew install pkg-config openssl
+
+    - name: Install mise tools
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        MISE_HTTP_TIMEOUT: 600
+        PYTHONIOENCODING: utf-8
+      run: |
+        mise install --yes
+        mise exec -- cargo --version
+        mise exec -- rustc --version

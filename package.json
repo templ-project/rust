@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@jscpd/badge-reporter": "^4.0.1",
+    "jscpd": "^4.0.5"
+  }
+}
