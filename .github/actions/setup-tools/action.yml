@@ -79,3 +79,8 @@ runs:
         mise install --yes
         mise exec -- cargo --version
         mise exec -- rustc --version
+
+    - name: Install Rust components
+      shell: bash
+      run: |
+        mise exec -- rustup component add rustfmt clippy
