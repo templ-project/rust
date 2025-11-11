@@ -16,7 +16,7 @@ jobs:
         steps:
             - name: Restore retry count
               id: cache
-              uses: actions/cache/restore@v4
+              uses: actions/cache@v4
               with:
                   key: retry-${{ github.event.workflow_run.id }}
                   path: .retry
@@ -44,13 +44,6 @@ jobs:
                     echo "Max retries reached (${retry_count}/3)"
                     echo "should_retry=false" >> $GITHUB_OUTPUT
                   fi
-
-            - name: Save retry count
-              uses: actions/cache/save@v4
-              if: always()
-              with:
-                  key: retry-${{ github.event.workflow_run.id }}
-                  path: .retry
 
             - name: Wait before retry
               if: steps.check.outputs.should_retry == 'true'
