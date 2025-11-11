@@ -170,13 +170,7 @@ tasks:
           fi
 
           echo "📊 Running tests with coverage..."
-          cargo tarpaulin \
-            --out Html \
-            --out Lcov \
-            --out Stdout \
-            --output-dir .coverage \
-            --exclude-files "tests/*" \
-            --all-features
+          cargo tarpaulin --out Html --out Lcov --out Stdout --output-dir .coverage --exclude-files "tests/*" --all-features
 
           echo ""
           if [ -f ".coverage/index.html" ]; then
@@ -198,13 +192,7 @@ tasks:
           }
 
           Write-Host "📊 Running tests with coverage..."
-          cargo tarpaulin `
-            --out Html `
-            --out Lcov `
-            --out Stdout `
-            --output-dir .coverage `
-            --exclude-files "tests/*" `
-            --all-features
+          cargo tarpaulin --out Html --out Lcov --out Stdout --output-dir .coverage --exclude-files "tests/*" --all-features
 
           Write-Host ""
           if (Test-Path ".coverage/index.html") {
