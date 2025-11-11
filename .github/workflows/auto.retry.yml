@@ -81,5 +81,6 @@ jobs:
       - name: Skip retry
         if: steps.check.outputs.should_retry == 'false'
         run: |
-          echo "::warning::⚠️ Max retry attempts reached. Manual intervention required."
-          echo "::warning::View the failed run at: ${{ github.event.workflow_run.html_url }}"
+          echo "::error::⚠️ Max retry attempts reached. Manual intervention required."
+          echo "::error::View the failed run at: ${{ github.event.workflow_run.html_url }}"
+          exit 1
