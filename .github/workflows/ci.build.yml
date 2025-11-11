@@ -89,13 +89,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONIOENCODING: utf-8
         run: |
-          # Install cargo-tarpaulin if not cached
-          if ! command -v cargo-tarpaulin &> /dev/null; then
-            cargo install cargo-tarpaulin
-          fi
-
           if [[ "${{ matrix.task_manager }}" == "task" ]]; then
-            mise exec -- task test:coverage
+            mise exec -- task test:gen-coverage
           else
             mise exec -- cargo tarpaulin --out Stdout --out Xml --verbose
           fi

@@ -84,3 +84,12 @@ runs:
       shell: bash
       run: |
         mise exec -- rustup component add rustfmt clippy
+
+    - name: Install cargo tools from mise
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        # Install cargo tools defined in .mise.toml (like cargo-tarpaulin)
+        # This respects the cargo cache and mise cache
+        mise exec -- cargo install --list || true
