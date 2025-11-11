@@ -34,12 +34,14 @@ jobs:
           echo "Current retry count: ${retry_count}"
           retry_count=$((retry_count + 1))
           echo $retry_count > .retry
+          max_retries=3
 
-          echo "attempts=${retry_count}" >> $GITHUB_OUTPUT
+          echo "max_retries=${max_retries}" >> $GITHUB_OUTPUT
+          echo "retry_count=${retry_count}" >> $GITHUB_OUTPUT
 
-          # Only retry up to 3 times total
-          if [ "${retry_count}" -le 3 ]; then
-            echo "Will retry (attempt ${retry_count}/3)"
+          # Only retry up to $max_retries times total
+          if [ "${retry_count}" -le "${max_retries}" ]; then
+            echo "Will retry (attempt ${retry_count}/${max_retries})"
             echo "should_retry=true" >> $GITHUB_OUTPUT
           else
             echo "Max retries reached (${retry_count}/3)"
@@ -72,10 +74,12 @@ jobs:
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${{ github.repository }}/actions/runs/${RUN_ID}/rerun-failed-jobs"
 
-          echo "✓ Retry triggered successfully"
+          retry_count=${{ steps.check.outputs.retry_count }}
+          max_retries=${{ steps.check.outputs.max_retries }}
+          echo "::notice::✓ Retry triggered successfully (attempt ${retry_count}/${max_retries})"
 
       - name: Skip retry
         if: steps.check.outputs.should_retry == 'false'
         run: |
-          echo "⚠️ Max retry attempts reached. Manual intervention required."
-          echo "View the failed run at: ${{ github.event.workflow_run.html_url }}"
+          echo "::warning::⚠️ Max retry attempts reached. Manual intervention required."
+          echo "::warning::View the failed run at: ${{ github.event.workflow_run.html_url }}"
