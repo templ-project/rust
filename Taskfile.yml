@@ -16,10 +16,7 @@ tasks:
   print:env:
     desc: "Print current build environment variables"
     cmds:
-      - cmd: env
-        platforms: [darwin, linux]
-      - cmd: powershell -Command "Get-ChildItem Env:"
-        platforms: [windows]
+      - env
 
   build:
     desc: "Build project (type: {{.RUST_BUILD_TYPE}})"
@@ -92,53 +89,30 @@ tasks:
   audit:
     desc: "Check for security vulnerabilities in dependencies"
     cmds:
-      - cmd: |
-          if ! command -v cargo-audit >/dev/null 2>&1; then
-            echo "⚠️ cargo-audit not found. Installing..."
-            cargo install cargo-audit
-          fi
-          echo "🔍 Running security audit..."
-          # Clean up corrupted advisory database if it exists
-          if [ -d "$HOME/.cargo/advisory-db" ] && [ ! -d "$HOME/.cargo/advisory-db/.git" ]; then
-            echo "🧹 Cleaning corrupted advisory database..."
-            rm -rf "$HOME/.cargo/advisory-db"
-          fi
-          cargo audit
-        platforms: [darwin, linux]
-      - cmd: |
-          if (!(Get-Command cargo-audit -ErrorAction SilentlyContinue)) {
-            Write-Host "⚠️ cargo-audit not found. Installing..."
-            cargo install cargo-audit
-          }
-          Write-Host "🔍 Running security audit..."
-          # Clean up corrupted advisory database if it exists
-          $advisoryDb = "$env:USERPROFILE\.cargo\advisory-db"
-          if ((Test-Path $advisoryDb) -and !(Test-Path "$advisoryDb\.git")) {
-            Write-Host "🧹 Cleaning corrupted advisory database..."
-            Remove-Item -Recurse -Force $advisoryDb
-          }
-          cargo audit
-        platforms: [windows]
+      - |
+        if ! command -v cargo-audit >/dev/null 2>&1; then
+          echo "⚠️ cargo-audit not found. Installing..."
+          cargo install cargo-audit
+        fi
+        echo "🔍 Running security audit..."
+        # Clean up corrupted advisory database if it exists
+        advisory_db="$HOME/.cargo/advisory-db"
+        if [ -d "$advisory_db" ] && [ ! -d "$advisory_db/.git" ]; then
+          echo "🧹 Cleaning corrupted advisory database..."
+          rm -rf "$advisory_db"
+        fi
+        cargo audit
 
   license-check:
     desc: "Check license compliance and security advisories"
     cmds:
-      - cmd: |
-          if ! command -v cargo-deny >/dev/null 2>&1; then
-            echo "⚠️ cargo-deny not found. Installing..."
-            cargo install cargo-deny
-          fi
-          echo "📋 Checking licenses and advisories..."
-          cargo deny check
-        platforms: [darwin, linux]
-      - cmd: |
-          if (!(Get-Command cargo-deny -ErrorAction SilentlyContinue)) {
-            Write-Host "⚠️ cargo-deny not found. Installing..."
-            cargo install cargo-deny
-          }
-          Write-Host "📋 Checking licenses and advisories..."
-          cargo deny check
-        platforms: [windows]
+      - |
+        if ! command -v cargo-deny >/dev/null 2>&1; then
+          echo "⚠️ cargo-deny not found. Installing..."
+          cargo install cargo-deny
+        fi
+        echo "📋 Checking licenses and advisories..."
+        cargo deny check
 
   # ============================================================================
   # Test Tasks
@@ -156,54 +130,27 @@ tasks:
   test:gen-coverage:
     desc: "Generate coverage report"
     cmds:
-      - cmd: |
-          echo ""
-          echo "📊 Generating coverage report..."
-          echo ""
-      - cmd: |
-          if ! command -v cargo-tarpaulin >/dev/null 2>&1; then
-            echo "⚠️ cargo-tarpaulin not found. Install with:"
-            echo "   cargo install cargo-tarpaulin"
-            echo "   or via mise: mise exec -- cargo install cargo-tarpaulin"
-            echo ""
-            exit 0
-          fi
-
+      - |
+        echo ""
+        echo "📊 Generating coverage report..."
+        echo ""
+        if command -v cargo-tarpaulin >/dev/null 2>&1; then
           echo "📊 Running tests with coverage..."
           cargo tarpaulin --out Html --out Lcov --out Stdout --output-dir .coverage --exclude-files "tests/*" --all-features
-
           echo ""
           if [ -f ".coverage/index.html" ]; then
             echo "✅ HTML coverage report: .coverage/index.html"
           fi
-
           if [ -f ".coverage/lcov.info" ]; then
             echo "✅ LCOV coverage data: .coverage/lcov.info"
           fi
           echo ""
-        platforms: [darwin, linux]
-      - cmd: |
-          if (!(Get-Command cargo-tarpaulin -ErrorAction SilentlyContinue)) {
-            Write-Host "⚠️ cargo-tarpaulin not found. Install with:"
-            Write-Host "   cargo install cargo-tarpaulin"
-            Write-Host "   or via mise: mise exec -- cargo install cargo-tarpaulin"
-            Write-Host ""
-            exit 0
-          }
-
-          Write-Host "📊 Running tests with coverage..."
-          cargo tarpaulin --out Html --out Lcov --out Stdout --output-dir .coverage --exclude-files "tests/*" --all-features
-
-          Write-Host ""
-          if (Test-Path ".coverage/index.html") {
-            Write-Host "✅ HTML coverage report: .coverage/index.html"
-          }
-
-          if (Test-Path ".coverage/lcov.info") {
-            Write-Host "✅ LCOV coverage data: .coverage/lcov.info"
-          }
-          Write-Host ""
-        platforms: [windows]
+        else
+          echo "⚠️ cargo-tarpaulin not found. Install with:"
+          echo "   cargo install cargo-tarpaulin"
+          echo "   or via mise: mise exec -- cargo install cargo-tarpaulin"
+          echo ""
+        fi
     silent: true
 
   # ============================================================================
