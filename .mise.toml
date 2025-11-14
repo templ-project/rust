@@ -5,6 +5,12 @@
 # Rust toolchain version (using latest stable)
 rust = "latest"
 
+# Note: rust-analyzer is installed as a rustup component, not via mise:
+#   rustup component add rust-analyzer
+# or via the hook below (uncomment to enable).
+#   [hooks]
+#   enter = "rustup component add rust-analyzer 2>/dev/null || true"
+
 node = "24"
 
 # Cargo tools (install via cargo)
