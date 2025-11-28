@@ -97,21 +97,25 @@ tests/
 ### System Dependencies (for coverage tools)
 
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt install pkg-config libssl-dev
 ```
 
 **Fedora/RHEL:**
+
 ```bash
 sudo dnf install pkg-config openssl-devel
 ```
 
 **macOS:**
+
 ```bash
 brew install pkg-config openssl
 ```
 
 **Then install coverage tool:**
+
 ```bash
 cargo install cargo-tarpaulin
 ```
@@ -133,6 +137,7 @@ task build:debug        # Debug build
 ```
 
 Outputs:
+
 - `target/debug/` - Debug builds with symbols
 - `target/release/` - Optimized release builds
 
@@ -199,6 +204,7 @@ task test:coverage
 Since Rust doesn't have classes, this template demonstrates the idiomatic alternative:
 
 **Structs with `impl` blocks:**
+
 ```rust
 pub struct Greeter;
 
@@ -214,6 +220,7 @@ impl Greeter {
 ```
 
 This provides similar functionality to classes with:
+
 - Associated functions (like static methods)
 - Instance methods (like class methods)
 - Traits (like interfaces)

@@ -6,12 +6,7 @@
     },
     "rust-language-server": {
       "command": "${userHome}/go/bin/mcp-language-server",
-      "args": [
-        "--workspace",
-        "${workspaceFolder}",
-        "--lsp",
-        "rust-analyzer"
-      ],
+      "args": ["--workspace", "${workspaceFolder}", "--lsp", "rust-analyzer"],
       "env": {
         "LOG_LEVEL": "DEBUG"
       }

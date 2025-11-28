@@ -10,9 +10,9 @@ on:
 jobs:
   # Validation & Build matrix for different platforms
   build:
-    name: Build ${{ matrix.os }}
+    name: Build
     if: |
-      !startsWith(github.event.head_commit.message, 'chore: version update')
+      !contains(github.event.head_commit.message, 'version_bump/')
     strategy:
       matrix:
         os:
@@ -23,32 +23,66 @@ jobs:
     with:
       os: ${{ matrix.os }}
 
-  # TODO: Version bump and Release jobs are disabled for now because of a Bumpalicious issue
-  # # Version bump (only on main branch push, uses conventional commits)
-  # version:
-  #   name: Bump Version
-  #   if: |
-  #     github.event_name == 'push'
-  #     && github.ref == 'refs/heads/main'
-  #   # && (needs.build.result == 'success' || needs.build.result == 'skipped')
-  #   # needs: [build]
-  #   uses: ./.github/workflows/ci.version.yml
-  #   permissions:
-  #     contents: write
-  #     pull-requests: write
-  #   secrets:
-  #     GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  # Version bump (only on main branch push, uses conventional commits)
+  version-bump:
+    name: Bump Version
+    if: |
+      always()
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    needs: [build]
+    uses: ./.github/workflows/ci.version.yml
+    permissions:
+      contents: write
+      pull-requests: write
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
-  # # Release (only on main branch push after version bump)
-  # release:
-  #   name: Create Release
-  #   if: |
-  #     github.event_name == 'push' && github.ref == 'refs/heads/main'
-  #     && (needs.version.result == 'success' || needs.version.result == 'skipped')
-  #   needs: [version]
-  #   uses: ./.github/workflows/ci.release.yml
-  #   permissions:
-  #     contents: write
-  #   with:
-  #     version_tag: ${{ needs.version.outputs.version_tag }}
-  #     prerelease: false
+  # Version detect (detect version values, in case they were changed)
+  version-detect:
+    name: Detect Version
+    needs: [version-bump]
+    runs-on: ubuntu-latest
+    if: always()
+    outputs:
+      tag: ${{ steps.extract.outputs.tag }}
+      version: ${{ steps.extract.outputs.version }}
+    steps:
+      - name: Download version artifact
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: version-output
+          path: version-output
+
+      - name: Extract version data
+        id: extract
+        continue-on-error: true
+        run: |
+          if [ -f version-output/version.json ]; then
+            TAG=$(jq -r '.tag' version-output/version.json)
+            VERSION=$(jq -r '.version' version-output/version.json)
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "Extracted tag: $TAG"
+            echo "Extracted version: $VERSION"
+          else
+            echo "⚠ version.json not found in artifact - skipping"
+            echo "tag=" >> $GITHUB_OUTPUT
+            echo "version=" >> $GITHUB_OUTPUT
+          fi
+
+  # Release (only on main branch push after version bump)
+  release:
+    name: Create Release
+    if: |
+      always()
+      && needs.version-detect.outputs.tag != ''
+    needs: [version-detect]
+    uses: ./.github/workflows/ci.release.yml
+    permissions:
+      contents: write
+    with:
+      tag: ${{ needs.version-detect.outputs.tag }}
+      prerelease: false

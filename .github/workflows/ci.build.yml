@@ -4,44 +4,39 @@ on:
   workflow_call:
     inputs:
       os:
-        description: "Operating system to run on"
+        description: 'Operating system to run on'
         required: false
         type: string
-        default: "ubuntu-latest"
+        default: 'ubuntu-latest'
 
 jobs:
   # Setup job runs once to populate mise cache for parallel jobs
   setup:
     runs-on: ${{ inputs.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-tools
 
   build:
     runs-on: ${{ inputs.os }}
     needs: [setup]
-    strategy:
-      matrix:
-        profile:
-          - debug
-          - release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-tools
 
-      - name: Build (${{ matrix.profile }})
+      - name: Build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONIOENCODING: utf-8
         run: |
-          mise exec -- task build
+          task build
         shell: bash
 
   lint:
     runs-on: ${{ inputs.os }}
     needs: [setup, build]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-tools
 
       - name: Check Code Formatting
@@ -49,7 +44,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONIOENCODING: utf-8
         run: |
-          mise exec -- task format:check
+          task format:check
         shell: bash
 
       - name: Lint Code
@@ -57,18 +52,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONIOENCODING: utf-8
         run: |
-          mise exec -- task lint:check
+          task lint:check
         shell: bash
 
   test:
     runs-on: ${{ inputs.os }}
     needs: [setup, lint]
-    strategy:
-      matrix:
-        task_manager:
-          - task
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-tools
 
       - name: Run Tests
@@ -76,11 +67,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONIOENCODING: utf-8
         run: |
-          if [[ "${{ matrix.task_manager }}" == "task" ]]; then
-            mise exec -- task test
-          else
-            mise exec -- cargo test --verbose
-          fi
+          task test
         shell: bash
 
       - name: Run Tests with Coverage
@@ -89,33 +76,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONIOENCODING: utf-8
         run: |
-          if [[ "${{ matrix.task_manager }}" == "task" ]]; then
-            mise exec -- task test:gen-coverage
-          else
-            mise exec -- cargo tarpaulin --out Stdout --out Xml --verbose
-          fi
+          task test:gen-coverage
         shell: bash
-
-      - name: Upload coverage to Codecov
-        if: ${{ inputs.os == 'ubuntu-latest' }}
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./cobertura.xml
-          fail_ci_if_error: false
 
   duplicate-check:
     if: ${{ inputs.os == 'ubuntu-latest' }}
     runs-on: ${{ inputs.os }}
     needs: [setup]
     steps:
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-
-      - uses: go-task/setup-task@v1
-
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+      # duplicate check only requires node setup
+      - uses: actions/setup-node@v3
 
       - name: Run duplicate check
-        run: task duplicate-check
+        run: |
+          npm install && npm run duplicate-check

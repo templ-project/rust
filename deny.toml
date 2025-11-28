@@ -11,14 +11,7 @@ ignore = []
 version = 2
 confidence-threshold = 0.8
 # Allow common permissive licenses
-allow = [
-    "MIT",
-    "Apache-2.0",
-    "BSD-2-Clause",
-    "BSD-3-Clause",
-    "ISC",
-    "Unicode-DFS-2016",
-]
+allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-DFS-2016"]
 # In v2, all licenses not in 'allow' list are automatically denied
 # No need for explicit deny list
 

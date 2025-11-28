@@ -1,11 +1,20 @@
-name: "Setup Development Tools"
-description: "Install Task, mise, and Rust toolchain with caching"
+name: 'Setup Development Tools'
+description: 'Install Task, mise, and project tools with caching'
+inputs:
+  refresh-deps:
+    description: 'Force refresh dependencies by bypassing cache'
+    required: false
+    default: 'false'
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
+    # === task ===
     - name: Setup Task
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       uses: go-task/setup-task@v1
 
+    # === mise ===
     - name: Install Mise (Darwin & Linux)
       env:
         GITHUB_TOKEN: ${{ github.token }}
@@ -13,8 +22,9 @@ runs:
       shell: bash
       run: |
         curl https://mise.run | sh
-        echo "eval \"\$(~/.local/bin/mise activate bash)\"" >> ~/.bashrc
+        # echo "eval \"\$(/Users/runner/.local/bin/mise activate bash)\"" >> ~/.bashrc
         mise activate
+        mise --version
 
     - name: Install Mise (Windows)
       env:
@@ -27,35 +37,68 @@ runs:
     - name: Update Mise
       env:
         GITHUB_TOKEN: ${{ github.token }}
+      if: ${{ runner.os == 'Windows' }}
       shell: bash
       run: |
         mise self-update
         mise --version
 
+    # === mise === cache ===
     - uses: actions/cache@v4
+      continue-on-error: true
       if: ${{ runner.os != 'Windows' }}
       with:
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-tools-${{ hashFiles('.mise.lock', '.mise.toml') }}
+        key: rust-${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('.mise.lock') }}
+        restore-keys: |
+          rust-${{ runner.os }}-${{ runner.arch }}-mise-
         path: |
           ~/.local/share/mise
           ~/.cache/mise
 
     - uses: actions/cache@v4
+      continue-on-error: true
       if: ${{ runner.os == 'Windows' }}
       with:
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-tools-${{ hashFiles('.mise.lock', '.mise.toml') }}
+        key: rust-${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('.mise.lock') }}
+        restore-keys: |
+          rust-${{ runner.os }}-${{ runner.arch }}-mise-
         path: |
           ~\AppData\Local\mise\installs
           ~\.cache\mise
 
+    # === rust === cache ===
     - uses: actions/cache@v4
       with:
-        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: rust-${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: rust-${{ runner.os }}-${{ runner.arch }}-cargo-
         path: |
           ~/.cargo/bin
           ~/.cargo/registry
           ~/.cargo/git
 
+    # === python === cache ===
+    - uses: actions/cache@v4
+      continue-on-error: true
+      if: ${{ runner.os == 'Windows' }}
+      with:
+        key: rust-${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
+        restore-keys: |
+          rust-${{ runner.os }}-${{ runner.arch }}-uv-
+        path: |
+          .venv
+
+    # === node === cache ===
+    - uses: actions/cache@v4
+      continue-on-error: true
+      if: ${{ runner.os == 'Windows' }}
+      with:
+        key: rust-${{ runner.os }}-${{ runner.arch }}-node-${{ hashFiles('package-lock.json') }}
+        restore-keys: |
+          rust-${{ runner.os }}-${{ runner.arch }}-node-
+        path: |
+          node_modules
+
+    # === sync deps ===
     - name: Install system dependencies (Linux)
       if: ${{ runner.os == 'Linux' }}
       shell: bash
@@ -63,33 +106,20 @@ runs:
         sudo apt-get update
         sudo apt-get install -y build-essential pkg-config libssl-dev
 
-    - name: Install system dependencies (macOS)
-      if: ${{ runner.os == 'macOS' }}
-      shell: bash
-      run: |
-        brew install pkg-config openssl
-
-    - name: Install mise tools
+    - name: Sync Dependencies
+      if: ${{ inputs.refresh-deps == 'false' }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ github.token }}
         MISE_HTTP_TIMEOUT: 600
         PYTHONIOENCODING: utf-8
-      run: |
-        mise install --yes
-        mise exec -- cargo --version
-        mise exec -- rustc --version
+      run: task deps:sync
 
-    - name: Install Rust components
-      shell: bash
-      run: |
-        mise exec -- rustup component add rustfmt clippy
-
-    - name: Install cargo tools from mise
+    - name: Refresh Dependencies
+      if: ${{ inputs.refresh-deps == 'true' }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ github.token }}
-      run: |
-        # Install cargo tools defined in .mise.toml (like cargo-tarpaulin)
-        # This respects the cargo cache and mise cache
-        mise exec -- cargo install --list || true
+        MISE_HTTP_TIMEOUT: 600
+        PYTHONIOENCODING: utf-8
+      run: task deps:refresh

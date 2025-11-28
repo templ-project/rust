@@ -1,37 +1,59 @@
-version: "3"
+version: '3'
 
 vars:
-  __TF_COMMAND_WRAPPER:
+  # mise dependent
+  __TF_MISE_E: 'mise trust; mise exec --'
+  __TF_MISE_E_PWSH: 'mise trust; mise exec -- pwsh -ExecutionPolicy Bypass -Command'
+  __TF_MISE_E_PWSH_FILE: 'mise trust; mise exec -- pwsh -ExecutionPolicy Bypass -File'
+  __TF_MISE_E_UV_RUN: 'mise trust; mise exec -- uv run'
+  # os dependent
+
+  __TF_VAR_PREFIX:
     sh: |
-      echo '{{if eq OS "windows"}}powershell -ExecutionPolicy Bypass -Command{{else}}bash -c{{end}}'
-  __TF_HEADER_LINE: "=============================================================="
+      echo "{{if eq OS "windows"}}\${{else}}{{end}}"
+  __TF_HEADER_LINE: '=============================================================='
+  __TF_SEP: ' '
+
+  # rust dependent
   RUST_PROJECT_NAME: '{{default .RUST_PROJECT_NAME "rust-template"}}'
   RUST_BUILD_TYPE: '{{default .RUST_BUILD_TYPE "release"}}'
 
 tasks:
   # ==========================================================================
-  # Build Tasks
+  # Generic Tasks
   # ==========================================================================
 
   print:env:
-    desc: "Print current build environment variables"
     cmds:
-      - env
+      - cmd: |
+          {{.__TF_MISE_E}} env | sort
+        platforms: [darwin, linux]
+      - cmd: |
+          {{.__TF_MISE_E}} {{ .__TF_SEP
+            }}pwsh -Command '$BashPath=(Get-Command bash -ErrorAction SilentlyContinue).Path;{{ .__TF_SEP
+              }}if ($BashPath) { & $BashPath -c "env | sort" }{{ .__TF_SEP
+              }}else { Get-ChildItem "Env:" | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" } }'
+        platforms: [windows]
+    desc: 'Print current build environment variables'
+
+  # ==========================================================================
+  # Build Tasks
+  # ==========================================================================
 
   build:
-    desc: "Build project (type: {{.RUST_BUILD_TYPE}})"
+    desc: 'Build project'
     cmds:
       - cmd: |
           echo "{{.__TF_HEADER_LINE}}"
           echo "Building {{.RUST_PROJECT_NAME}} for {{OS}}/{{ARCH}} in {{.RUST_BUILD_TYPE}} mode"
           echo "{{.__TF_HEADER_LINE}}"
       - task: print:env
-      - |
-        {{if eq .RUST_BUILD_TYPE "release"}}
-        cargo build --release
-        {{else}}
-        cargo build
-        {{end}}
+      - cmd: |
+          {{if eq .RUST_BUILD_TYPE "release"}}
+          {{.__TF_MISE_E}} cargo build --release
+          {{else}}
+          {{.__TF_MISE_E}} cargo build
+          {{end}}
     sources:
       - src/**/*.rs
       - tests/**/*.rs
@@ -42,7 +64,7 @@ tasks:
   # ============================================================================
 
   clean:
-    desc: "Clean all build artifacts"
+    desc: 'Clean all build artifacts'
     cmds:
       - |
         rm -rf \
@@ -50,8 +72,6 @@ tasks:
             .jscpd/html \
             .task \
             coverage \
-            node_modules \
-            package-lock.json \
             target
 
   # ============================================================================
@@ -59,98 +79,241 @@ tasks:
   # ============================================================================
 
   format:
-    desc: "Format code and fix issues"
+    desc: 'Format code and fix issues'
     cmds:
-      - cargo fmt --all
+      - task: format:cargo
+      - task: format:prettier
+      - cmd: echo "✅ Code format completed"
+
+  format:cargo:
+    desc: 'Format Rust code using rustfmt'
+    cmds:
+      - cmd: |
+          {{.__TF_MISE_E}} cargo fmt --all
+      - cmd: echo "✅ rust code format completed"
+
+  format:prettier:
+    cmds:
+      - task: prettier
+        vars:
+          CLI_ARGS: '--write'
+    desc: 'Format code using Prettier'
+    silent: true
+
+  prettier:
+    cmds:
+      - |
+        {{.__TF_MISE_E}} npx prettier {{.CLI_ARGS}} .
+    silent: true
+    sources:
+      - '**/*.{json,md,toml,yaml,yml}'
 
   format:check:
-    desc: "Check code formatting without fixing"
     cmds:
-      - cargo fmt --all -- --check
+      - task: format:check:cargo
+      - task: format:check:prettier
+      - cmd: echo "✅ Code format check completed"
+    desc: 'Check code formatting without fixing'
+
+  format:check:cargo:
+    desc: 'Check Rust code formatting using rustfmt'
+    cmds:
+      - cmd: |
+          {{.__TF_MISE_E}} cargo fmt --all -- --check
+      - cmd: echo "✅ rust code format check completed"
+
+  format:check:prettier:
+    cmds:
+      - task: prettier
+        vars:
+          CLI_ARGS: '--check'
+    desc: 'Check code formatting using Prettier'
+    silent: true
 
   lint:
-    desc: "Run linter and fix issues"
+    desc: 'Run linter and fix issues'
     cmds:
-      - cargo clippy --fix --allow-dirty --allow-staged --all-features -- -W clippy::all -W clippy::pedantic -A clippy::module-name-repetitions -A clippy::missing-const-for-fn -D warnings
+      - task: lint:cargo
+      - task: lint:eslint
+      - task: lint:pwshlint
+      - task: lint:shlint
+      - cmd: echo "✅ Linting completed"
 
-  lint:check:
-    desc: "Run linter without fixing"
+  lint:cargo:
     cmds:
-      - cargo clippy --all-features -- -W clippy::all -W clippy::pedantic -A clippy::module-name-repetitions -A clippy::missing-const-for-fn -D warnings
+      - task: cargo-clippy
+        vars:
+          CLI_ARGS: '--fix'
+      - echo "- ✅ cargo lint completed"
+
+  cargo-clippy:
+    cmds:
+      - cmd: |
+          {{.__TF_MISE_E}} cargo clippy --all-features --allow-dirty --verbose {{.CLI_ARGS}} -- \
+            -W clippy::all \
+            -W clippy::pedantic \
+            -A clippy::module-name-repetitions \
+            -A clippy::missing-const-for-fn \
+            -D warnings
+    desc: 'Run cargo clippy linter'
+    silent: true
+    sources:
+      - src/**/*.rs
+      - tests/**/*.rs
+      - Cargo.toml
+
+  lint:eslint:
+    cmds:
+      - task: eslint
+        vars:
+          CLI_ARGS: '--fix'
+      - echo "- ✅ eslint lint completed"
+    desc: 'Lint code using ESLint'
+    silent: true
+
+  eslint:
+    cmds:
+      - |
+        {{.__TF_MISE_E}} npx eslint {{.CLI_ARGS}} .
+    desc: 'Run ESLint'
+    silent: true
+    sources:
+      - '**/*.{json,md,toml,yaml,yml}'
+
+  lint:pwshlint:
+    aliases: [lint:pwsh]
+    cmds:
+      - task: pwshlint_py
+        vars:
+          CLI_ARGS: '--fix'
+      - echo "- ✅ pwsh lint completed"
+    desc: 'Lint PowerShell scripts using PSScriptAnalyzer'
+    silent: true
+
+  pwshlint_py:
+    cmds:
+      - |
+        {{.__TF_MISE_E_UV_RUN}} .scripts/pwshlint.py {{.CLI_ARGS}}
+    desc: 'Run PSScriptAnalyzer'
+    silent: true
+    sources:
+      - src/**/*.ps1
+
+  lint:shlint:
+    aliases: [lint:sh, lint:bash]
+    cmds:
+      - task: shlint_py
+        vars:
+          CLI_ARGS: '--fix'
+      - echo "- ✅ bash lint completed"
+    desc: 'Lint shell scripts using ShellCheck'
+    silent: true
+
+  shlint_py:
+    cmds:
+      - cmd: |
+          {{.__TF_MISE_E}} python .scripts/shlint.py {{.CLI_ARGS}}
+        platforms: [darwin, linux, windows]
+    desc: 'Run ShellCheck'
+    silent: true
+    sources:
+      - src/**/*.sh
+  lint:check:
+    desc: 'Run linter without fixing'
+    cmds:
+      - task: lint:check:cargo
+      - task: lint:check:eslint
+      - task: lint:check:pwshlint
+      - task: lint:check:shlint
+      - cmd: echo "✅ Linting check completed"
+
+  lint:check:cargo:
+    cmds:
+      - task: cargo-clippy
+      - echo "- ✅ cargo lint check completed"
+
+  lint:check:eslint:
+    cmds:
+      - |
+        {{.__TF_MISE_E}} npx eslint "./**/*.{toml,json,yaml,yml}"
+      - echo "- ✅ eslint lint check completed"
+    desc: 'Check code using ESLint'
+    silent: true
+
+  lint:check:pwshlint:
+    aliases: [lint:check:pwsh]
+    cmds:
+      - task: pwshlint_py
+      - echo "- ✅ pwsh lint completed"
+    desc: 'Check PowerShell scripts using PSScriptAnalyzer'
+    silent: true
+
+  lint:check:shlint:
+    aliases: [lint:check:sh, lint:check:bash]
+    cmds:
+      - task: shlint_py
+      - echo "- ✅ bash lint completed"
+    desc: 'Check shell scripts using ShellCheck'
+    silent: true
+
+  lint-staged:
+    desc: 'Run linter on staged files and fix issues'
+    cmds:
+      - |
+        {{.__TF_MISE_E}} npx -y lint-staged
+    silent: true
+
+  audit-check:
+    desc: 'Check for security vulnerabilities in dependencies'
+    cmds:
+      - |
+        echo "🔒 Checking for security vulnerabilities..."
+        {{.__TF_MISE_E}} cargo audit
 
   duplicate-check:
-    desc: "Check for duplicate code using jscpd"
     cmds:
       - |
-        [ ! -d ./node_modules ] && npm install jscpd @jscpd/badge-reporter
-        npx jscpd src/
-        git add .jscpd/jscpd-badge.svg 2>/dev/null || true
-
-  audit:
-    desc: "Check for security vulnerabilities in dependencies"
-    cmds:
-      - |
-        if ! command -v cargo-audit >/dev/null 2>&1; then
-          echo "⚠️ cargo-audit not found. Installing..."
-          cargo install cargo-audit
-        fi
-        echo "🔍 Running security audit..."
-        # Clean up corrupted advisory database if it exists
-        advisory_db="$HOME/.cargo/advisory-db"
-        if [ -d "$advisory_db" ] && [ ! -d "$advisory_db/.git" ]; then
-          echo "🧹 Cleaning corrupted advisory database..."
-          rm -rf "$advisory_db"
-        fi
-        cargo audit
+        {{.__TF_MISE_E}} npm run duplicate-check
+      - git add .jscpd/jscpd-badge.svg 2>/dev/null || true
+    desc: 'Check for duplicate code using jscpd'
 
   license-check:
-    desc: "Check license compliance and security advisories"
+    desc: 'Check license compliance and security advisories'
     cmds:
       - |
-        if ! command -v cargo-deny >/dev/null 2>&1; then
-          echo "⚠️ cargo-deny not found. Installing..."
-          cargo install cargo-deny
-        fi
         echo "📋 Checking licenses and advisories..."
-        cargo deny check
+        {{.__TF_MISE_E}} cargo deny check
 
   # ============================================================================
   # Test Tasks
   # ============================================================================
 
   test:
-    desc: "Run tests with coverage"
+    desc: 'Run tests with coverage'
     cmds:
       - task: build
         vars:
-          RUST_BUILD_TYPE: "debug"
-      - cargo test --all-features
+          RUST_BUILD_TYPE: 'debug'
+      - cmd: |
+          {{.__TF_MISE_E}} cargo test --all-features
       - task: test:gen-coverage
 
   test:gen-coverage:
-    desc: "Generate coverage report"
+    desc: 'Generate coverage report'
     cmds:
       - |
         echo ""
         echo "📊 Generating coverage report..."
+        echo "📊 Running tests with coverage..."
+        {{.__TF_MISE_E}} cargo tarpaulin --out Html --out Lcov --out Stdout --output-dir .coverage --exclude-files "tests/*" --all-features
         echo ""
-        if command -v cargo-tarpaulin >/dev/null 2>&1; then
-          echo "📊 Running tests with coverage..."
-          cargo tarpaulin --out Html --out Lcov --out Stdout --output-dir .coverage --exclude-files "tests/*" --all-features
-          echo ""
-          if [ -f ".coverage/index.html" ]; then
-            echo "✅ HTML coverage report: .coverage/index.html"
-          fi
-          if [ -f ".coverage/lcov.info" ]; then
-            echo "✅ LCOV coverage data: .coverage/lcov.info"
-          fi
-          echo ""
-        else
-          echo "⚠️ cargo-tarpaulin not found. Install with:"
-          echo "   cargo install cargo-tarpaulin"
-          echo "   or via mise: mise exec -- cargo install cargo-tarpaulin"
-          echo ""
+        if [ -f ".coverage/index.html" ]; then
+          echo "✅ HTML coverage report: .coverage/index.html"
         fi
+        if [ -f ".coverage/lcov.info" ]; then
+          echo "✅ LCOV coverage data: .coverage/lcov.info"
+        fi
+        echo ""
     silent: true
 
   # ============================================================================
@@ -158,22 +321,22 @@ tasks:
   # ============================================================================
 
   run:
-    desc: "Run application"
+    desc: 'Run application'
     deps:
       - task: build
         vars:
-          RUST_BUILD_TYPE: "debug"
+          RUST_BUILD_TYPE: 'debug'
     cmds:
       - |
         echo "🏃 Running application..."
-        cargo run
+        {{.__TF_MISE_E}} cargo run
 
   debug:
-    desc: "Run application with debugger (gdb/lldb)"
+    desc: 'Run application with debugger (gdb/lldb)'
     cmds:
       - task: build
         vars:
-          RUST_BUILD_TYPE: "debug"
+          RUST_BUILD_TYPE: 'debug'
       - cmd: |
           {{if eq OS "windows"}}
           echo "⚠️ CLI debugging not supported on Windows."
@@ -200,30 +363,177 @@ tasks:
   # ============================================================================
 
   docs:
-    desc: "Build and open documentation"
+    desc: 'Build documentation'
     cmds:
-      - cargo doc --open --no-deps --all-features
+      - |
+        {{.__TF_MISE_E}} cargo doc --no-deps --all-features
 
-  docs:build:
-    desc: "Build documentation without opening"
+  docs:serve:
+    desc: 'Serve documentation locally with live reload'
     cmds:
-      - cargo doc --no-deps --all-features
+      - |
+        {{.__TF_MISE_E}} cargo doc --open --no-deps --all-features
 
   # ============================================================================
   # Validation Tasks
   # ============================================================================
 
   validate:
-    desc: "Run all quality checks"
     cmds:
-      - task: format:check
-      - task: lint:check
-      - task: duplicate-check
+      - task: format
+      - task: clean
+      - task: build
+      - task: lint
+      - task: run
+      - task: clean
       - task: test
+      - task: docs
       - cmd: |
           echo ""
           echo "{{.__TF_HEADER_LINE}}"
-          echo "✅ All validation checks passed"
+          echo "✅ Validation successful"
           echo "{{.__TF_HEADER_LINE}}"
           echo ""
-    silent: false
+    desc: 'Run CI pipeline for specific build system and compiler'
+    silent: true
+  # ============================================================================
+  # Dependencies
+  # ============================================================================
+
+  deps:clean:
+    cmds:
+      - task: deps:clean:mise
+      - task: deps:clean:cargo
+      - task: deps:clean:npm
+      - task: deps:clean:uv
+    desc: 'Clean all project dependencies'
+
+  deps:clean:mise:
+    cmds:
+      - echo "🧹 Cleaning Mise dependencies..."
+      - cmd: rm -rf ~/.local/share/mise/installs
+        platforms: [darwin, linux]
+      - cmd: |
+          {{.__TF_MISE_E_PWSH}} 'Remove-Item -Recurse -Force $env:LOCALAPPDATA\mise\installs\*'
+        platforms: [windows]
+      - cmd: rm -rf .mise.lock .mise.local.lock
+      - echo "✓ Mise environment cleaned"
+    desc: 'Clean Mise dependencies'
+
+  deps:clean:cargo:
+    cmds:
+      - |
+        echo "🧹 Cleaning Cargo dependencies..."
+        rm -rf Cargo.lock target
+        echo "✓ Cargo environment cleaned"
+    desc: 'Clean Cargo dependencies'
+
+  deps:clean:npm:
+    cmds:
+      - |
+        echo "🧹 Cleaning NodeJs dependencies..."
+        rm -rf node_modules package-lock.json
+        echo "✓ NodeJs environment cleaned"
+    desc: 'Clean NodeJs dependencies'
+
+  deps:clean:uv:
+    cmds:
+      - |
+        echo "🧹 Cleaning Python dependencies..."
+        rm -rf .venv uv.lock
+        echo "✓ Python environment cleaned"
+    desc: 'Clean Python dependencies'
+
+  deps:sync:
+    cmds:
+      - task: deps:sync:mise
+      - task: deps:sync:cargo
+      - task: deps:sync:npm
+      - task: deps:sync:uv
+    desc: 'Install all project dependencies'
+
+  deps:sync:mise:
+    cmds:
+      - |
+        echo "📦 Installing Mise dependencies..."
+        if [ ! -f .mise.local.lock ] && [ ! -f .mise.lock ]; then
+          echo "⚠️  .mise.local.lock not found; sync won't generate .mise.lock automatically."
+          echo "Please create a .mise.local.lock file or a .mise.lock file to proceed."
+          echo ""
+          echo "[settings]"
+          echo "experimental = true"
+          echo "lockfile = true"
+          echo ""
+          exit 1
+        fi
+        mise trust && mise install --yes
+        echo "✓ Mise environment ready"
+    desc: 'Install Mise dependencies'
+
+  deps:sync:cargo:
+    cmds:
+      - |
+        echo "📦 Installing Cargo dependencies..."
+        {{.__TF_MISE_E}} cargo fetch
+        {{.__TF_MISE_E}} cargo install --force cargo-tarpaulin cargo-deny cargo-audit
+        echo "✓ Cargo environment ready"
+    desc: 'Install Cargo dependencies'
+
+  deps:sync:npm:
+    cmds:
+      - |
+        echo "📦 Installing NodeJs dependencies..."
+        {{.__TF_MISE_E}} npm install
+        npx husky
+        echo "✓ NodeJs environment ready"
+    desc: 'Install NodeJs dependencies'
+
+  deps:sync:uv:
+    cmds:
+      - |
+        echo "📦 Installing Python dependencies..."
+        {{.__TF_MISE_E}} uv sync
+        echo "✓ Python environment ready"
+    desc: 'Install Python dependencies'
+
+  deps:refresh:
+    cmds:
+      - task: deps:refresh:mise
+      - task: deps:refresh:cargo
+      - task: deps:refresh:npm
+    desc: 'Refresh all project dependencies'
+
+  deps:refresh:mise:
+    cmds:
+      - |
+        echo "🔄 Refreshing Mise packages..."
+        mise upgrade
+        echo "✓ Packages refreshed"
+    desc: 'Refresh all Mise packages (update dependencies)'
+
+  deps:refresh:cargo:
+    cmds:
+      - |
+        echo "🔄 Refreshing Cargo packages..."
+        {{.__TF_MISE_E}} cargo update
+        {{.__TF_MISE_E}} cargo install --force cargo-tarpaulin cargo-deny cargo-audit
+        echo "✓ Packages refreshed"
+    desc: 'Refresh all Cargo packages (update dependencies)'
+
+  deps:refresh:npm:
+    cmds:
+      - |
+        echo "🔄 Refreshing NodeJs packages..."
+        {{.__TF_MISE_E}} npm outdated \
+          && {{.__TF_MISE_E}} npm update \
+          && {{.__TF_MISE_E}} npm audit fix
+        echo "✓ Packages refreshed"
+    desc: 'Refresh all NodeJs packages (update dependencies)'
+
+  deps:refresh:uv:
+    cmds:
+      - |
+        echo "🔄 Refreshing Python packages..."
+        {{.__TF_MISE_E}} uv sync --upgrade
+        echo "✓ Packages refreshed"
+    desc: 'Refresh all Python packages (update dependencies)'

@@ -122,7 +122,7 @@ fn test_my_feature() {
 
 Include examples in doc comments that also serve as tests:
 
-```rust
+````rust
 /// Returns a greeting message.
 ///
 /// # Examples
@@ -136,7 +136,7 @@ Include examples in doc comments that also serve as tests:
 pub fn hello(name: &str) -> Result<String, Error> {
     // Implementation
 }
-```
+````
 
 ## File Structure
 
