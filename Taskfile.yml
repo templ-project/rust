@@ -17,6 +17,7 @@ vars:
   # rust dependent
   RUST_PROJECT_NAME: '{{default .RUST_PROJECT_NAME "rust-template"}}'
   RUST_BUILD_TYPE: '{{default .RUST_BUILD_TYPE "release"}}'
+  RUST_BUILD_ARCH: '{{default .RUST_BUILD_ARCH "x86_64"}}'
 
 tasks:
   # ==========================================================================
@@ -50,7 +51,11 @@ tasks:
       - task: print:env
       - cmd: |
           {{if eq .RUST_BUILD_TYPE "release"}}
-          {{.__TF_MISE_E}} cargo build --release
+          {{.__TF_MISE_E}} cargo build --release \
+            --target {{.RUST_BUILD_ARCH}}-unknown-{{
+              if eq OS "windows"}}pc-windows-msvc{{
+              else if eq OS "darwin"}}apple-darwin{{
+              else}}unknown-linux-gnu{{end}}
           {{else}}
           {{.__TF_MISE_E}} cargo build
           {{end}}
@@ -519,9 +524,9 @@ tasks:
     cmds:
       - |
         echo "📦 Installing Mise dependencies..."
-        if [ ! -f .mise.local.lock ] && [ ! -f .mise.lock ]; then
-          echo "⚠️  .mise.local.lock not found; sync won't generate .mise.lock automatically."
-          echo "Please create a .mise.local.lock file or a .mise.lock file to proceed."
+        if [ ! -f .mise.local.toml ] && [ ! -f .mise.lock ]; then
+          echo "⚠️  .mise.local.toml not found; sync won't generate .mise.lock automatically."
+          echo "Please create a .mise.local.toml file or a .mise.lock file to proceed."
           echo ""
           echo "[settings]"
           echo "experimental = true"
@@ -547,6 +552,7 @@ tasks:
       - |
         echo "📦 Installing NodeJs dependencies..."
         {{.__TF_MISE_E}} npm install
+        {{.__TF_MISE_E}} npx husky
         echo "✓ NodeJs environment ready"
     desc: "Install NodeJs dependencies"
 

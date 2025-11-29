@@ -6,7 +6,6 @@
 *.rs
 *.sh
 .PSScriptAnalyzerSettings.psd1
-.cargo-husky/
 .editorconfig
 .eslintignore
 .gitattributes

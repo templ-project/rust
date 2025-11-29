@@ -4,10 +4,20 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Operating system to run on'
+        description: "Operating system to run on"
         required: false
         type: string
-        default: 'ubuntu-latest'
+        default: "ubuntu-latest"
+      arch:
+        description: "Target architecture (x86_64, aarch64)"
+        required: false
+        type: string
+        default: "x86_64"
+      target:
+        description: "Rust target triple"
+        required: false
+        type: string
+        default: "x86_64-unknown-linux-gnu"
 
 jobs:
   # Setup job runs once to populate mise cache for parallel jobs
@@ -24,13 +34,34 @@ jobs:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-tools
 
+      - name: Add Rust target
+        run: |
+          rustup target add ${{ inputs.target }}
+        shell: bash
+
       - name: Build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONIOENCODING: utf-8
         run: |
-          task build
+          task build RUST_BUILD_ARCH=${{ inputs.arch }}
         shell: bash
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ inputs.os }}-${{ inputs.arch }}
+          path: |
+            target/${{ inputs.target }}/release/*
+            !target/${{ inputs.target }}/release/.fingerprint
+            !target/${{ inputs.target }}/release/build
+            !target/${{ inputs.target }}/release/deps
+            !target/${{ inputs.target }}/release/examples
+            !target/${{ inputs.target }}/release/incremental
+            !target/${{ inputs.target }}/release/*.d
+            !target/${{ inputs.target }}/release/*.rlib
+          if-no-files-found: warn
+          retention-days: 7
 
   lint:
     runs-on: ${{ inputs.os }}
