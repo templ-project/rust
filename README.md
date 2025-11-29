@@ -25,7 +25,7 @@ Or clone manually
 git clone https://github.com/templ-project/rust.git my-project
 cd my-project
 # Remove template-specific files
-rm -rf .git .uvx-install javascript/ cpp/
+rm -rf .git _uvx_install javascript/ cpp/
 # Install dependencies (requires system packages: pkg-config, libssl-dev)
 mise install
 cargo build

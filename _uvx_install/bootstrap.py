@@ -298,13 +298,15 @@ def bootstrap(target_path, project_name=None):
     bootstrap_script = target_path / "bootstrap.py"
     remove_if_exists(bootstrap_script)
 
-    # Remove .uvx-install directory
-    install_dir = target_path / ".uvx-install"
+    # Remove _uvx_install directory
+    install_dir = target_path / "_uvx_install"
     remove_if_exists(install_dir)
 
-    # Remove _install directory if it exists (legacy)
+    # Remove legacy install directories if they exist
     old_install_dir = target_path / "_install"
     remove_if_exists(old_install_dir)
+    legacy_install_dir = target_path / ".uvx-install"
+    remove_if_exists(legacy_install_dir)
 
     # Remove pyproject.toml (bootstrap packaging file)
     pyproject_file = target_path / "pyproject.toml"
