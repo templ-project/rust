@@ -22,9 +22,6 @@ runs:
       shell: bash
       run: |
         curl https://mise.run | sh
-        # echo "eval \"\$(/Users/runner/.local/bin/mise activate bash)\"" >> ~/.bashrc
-        mise activate
-        mise --version
 
     - name: Install Mise (Windows)
       env:
@@ -37,9 +34,9 @@ runs:
     - name: Update Mise
       env:
         GITHUB_TOKEN: ${{ github.token }}
-      if: ${{ runner.os == 'Windows' }}
       shell: bash
       run: |
+        # mise activate
         mise self-update
         mise --version
 
@@ -48,7 +45,7 @@ runs:
       continue-on-error: true
       if: ${{ runner.os != 'Windows' }}
       with:
-        key: rust-${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('.mise.lock') }}
+        key: rust-${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
         restore-keys: |
           rust-${{ runner.os }}-${{ runner.arch }}-mise-
         path: |
@@ -59,7 +56,7 @@ runs:
       continue-on-error: true
       if: ${{ runner.os == 'Windows' }}
       with:
-        key: rust-${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('.mise.lock') }}
+        key: rust-${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
         restore-keys: |
           rust-${{ runner.os }}-${{ runner.arch }}-mise-
         path: |
@@ -69,12 +66,14 @@ runs:
     # === rust === cache ===
     - uses: actions/cache@v4
       with:
-        key: rust-${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: rust-${{ runner.os }}-${{ runner.arch }}-toolchain-${{ hashFiles('mise.lock', '**/Cargo.lock') }}
         restore-keys: rust-${{ runner.os }}-${{ runner.arch }}-cargo-
         path: |
           ~/.cargo/bin
           ~/.cargo/registry
           ~/.cargo/git
+          ~/.rustup/toolchains
+          ~/.rustup/update-hashes
 
     # === python === cache ===
     - uses: actions/cache@v4

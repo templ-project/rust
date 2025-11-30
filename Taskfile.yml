@@ -1,23 +1,25 @@
-version: "3"
+version: '3'
 
 vars:
   # mise dependent
-  __TF_MISE_E: "mise trust; mise exec --"
-  __TF_MISE_E_PWSH: "mise trust; mise exec -- pwsh -ExecutionPolicy Bypass -Command"
-  __TF_MISE_E_PWSH_FILE: "mise trust; mise exec -- pwsh -ExecutionPolicy Bypass -File"
-  __TF_MISE_E_UV_RUN: "mise trust; mise exec -- uv run"
+  __TF_MISE_E: 'mise trust; mise exec --'
+  __TF_MISE_E_PWSH: 'mise trust; mise exec -- pwsh -ExecutionPolicy Bypass -Command'
+  __TF_MISE_E_PWSH_FILE: 'mise trust; mise exec -- pwsh -ExecutionPolicy Bypass -File'
+  __TF_MISE_E_UV_RUN: 'mise trust; mise exec -- uv run'
   # os dependent
 
   __TF_VAR_PREFIX:
     sh: |
       echo "{{if eq OS "windows"}}\${{else}}{{end}}"
-  __TF_HEADER_LINE: "=============================================================="
-  __TF_SEP: " "
+  __TF_HEADER_LINE: '=============================================================='
+  __TF_SEP: ' '
 
   # rust dependent
   RUST_PROJECT_NAME: '{{default .RUST_PROJECT_NAME "rust-template"}}'
   RUST_BUILD_TYPE: '{{default .RUST_BUILD_TYPE "release"}}'
-  RUST_BUILD_ARCH: '{{default .RUST_BUILD_ARCH "x86_64"}}'
+  RUST_BUILD_ARCH:
+    sh: 'echo {{if eq OS "darwin"}}aarch64{{else}}x86_64{{end}}'
+  RUST_BUILD_TARGET: '{{default .RUST_BUILD_TARGET ""}}' # Full target triple (e.g., x86_64-unknown-linux-gnu)
 
 tasks:
   # ==========================================================================
@@ -35,14 +37,14 @@ tasks:
               }}if ($BashPath) { & $BashPath -c "env | sort" }{{ .__TF_SEP
               }}else { Get-ChildItem "Env:" | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" } }'
         platforms: [windows]
-    desc: "Print current build environment variables"
+    desc: 'Print current build environment variables'
 
   # ==========================================================================
   # Build Tasks
   # ==========================================================================
 
   build:
-    desc: "Build project"
+    desc: 'Build project'
     cmds:
       - cmd: |
           echo "{{.__TF_HEADER_LINE}}"
@@ -51,11 +53,15 @@ tasks:
       - task: print:env
       - cmd: |
           {{if eq .RUST_BUILD_TYPE "release"}}
-          {{.__TF_MISE_E}} cargo build --release \
-            --target {{.RUST_BUILD_ARCH}}-unknown-{{
-              if eq OS "windows"}}pc-windows-msvc{{
-              else if eq OS "darwin"}}apple-darwin{{
-              else}}unknown-linux-gnu{{end}}
+          {{if ne .RUST_BUILD_TARGET ""}}
+          {{.__TF_MISE_E}} cargo build --release --target {{.RUST_BUILD_TARGET}}
+          {{else if eq OS "windows"}}
+          {{.__TF_MISE_E}} cargo build --release --target {{.RUST_BUILD_ARCH}}-pc-windows-msvc
+          {{else if eq OS "darwin"}}
+          {{.__TF_MISE_E}} cargo build --release --target {{.RUST_BUILD_ARCH}}-apple-darwin
+          {{else}}
+          {{.__TF_MISE_E}} cargo build --release --target {{.RUST_BUILD_ARCH}}-unknown-linux-gnu
+          {{end}}
           {{else}}
           {{.__TF_MISE_E}} cargo build
           {{end}}
@@ -69,7 +75,7 @@ tasks:
   # ============================================================================
 
   clean:
-    desc: "Clean all build artifacts"
+    desc: 'Clean all build artifacts'
     cmds:
       - |
         rm -rf \
@@ -84,14 +90,14 @@ tasks:
   # ============================================================================
 
   format:
-    desc: "Format code and fix issues"
+    desc: 'Format code and fix issues'
     cmds:
       - task: format:cargo
       - task: format:prettier
       - cmd: echo "✅ Code format completed"
 
   format:cargo:
-    desc: "Format Rust code using rustfmt"
+    desc: 'Format Rust code using rustfmt'
     cmds:
       - cmd: |
           {{.__TF_MISE_E}} cargo fmt --all
@@ -101,8 +107,8 @@ tasks:
     cmds:
       - task: prettier
         vars:
-          CLI_ARGS: "--write ."
-    desc: "Format code using Prettier"
+          CLI_ARGS: '--write .'
+    desc: 'Format code using Prettier'
     silent: true
 
   prettier:
@@ -112,26 +118,26 @@ tasks:
       - echo "- ✅ prettier format completed"
     silent: true
     sources:
-      - "**/*.{json,md,toml,yaml,yml}"
+      - '**/*.{json,md,toml,yaml,yml}'
 
   format:ruff:
     aliases: [format:py, format:python]
     cmds:
       - task: ruff
         vars:
-          CLI_ARGS: "format ."
+          CLI_ARGS: 'format .'
       - echo "- ✅ ruff format completed"
-    desc: "Format Python code using Ruff"
+    desc: 'Format Python code using Ruff'
     silent: true
 
   ruff:
     cmds:
       - |
         {{.__TF_MISE_E_UV_RUN}} ruff {{.CLI_ARGS}}
-    desc: "Run Ruff"
+    desc: 'Run Ruff'
     silent: true
     sources:
-      - "**/*.py"
+      - '**/*.py'
 
   format:check:
     cmds:
@@ -139,10 +145,10 @@ tasks:
       - task: format:check:prettier
       - task: format:check:ruff
       - cmd: echo "✅ Code format check completed"
-    desc: "Check code formatting without fixing"
+    desc: 'Check code formatting without fixing'
 
   format:check:cargo:
-    desc: "Check Rust code formatting using rustfmt"
+    desc: 'Check Rust code formatting using rustfmt'
     cmds:
       - cmd: |
           {{.__TF_MISE_E}} cargo fmt --all -- --check
@@ -152,9 +158,9 @@ tasks:
     cmds:
       - task: prettier
         vars:
-          CLI_ARGS: "--check ."
+          CLI_ARGS: '--check .'
       - echo "- ✅ prettier format check completed"
-    desc: "Check code formatting using Prettier"
+    desc: 'Check code formatting using Prettier'
     silent: true
 
   format:check:ruff:
@@ -162,13 +168,13 @@ tasks:
     cmds:
       - task: ruff
         vars:
-          CLI_ARGS: "format --check ."
+          CLI_ARGS: 'format --check .'
       - echo "- ✅ ruff format check completed"
-    desc: "Check Python code formatting using Ruff"
+    desc: 'Check Python code formatting using Ruff'
     silent: true
 
   lint:
-    desc: "Run linter and fix issues"
+    desc: 'Run linter and fix issues'
     cmds:
       - task: lint:cargo
       - task: lint:eslint
@@ -181,19 +187,19 @@ tasks:
     cmds:
       - task: cargo-clippy
         vars:
-          CLI_ARGS: "--fix"
+          CLI_ARGS: '--fix --allow-dirty'
       - echo "- ✅ cargo lint completed"
 
   cargo-clippy:
     cmds:
       - cmd: |
-          {{.__TF_MISE_E}} cargo clippy --all-features --allow-dirty --verbose {{.CLI_ARGS}} -- \
+          {{.__TF_MISE_E}} cargo clippy --all-features --verbose {{.CLI_ARGS}} -- \
             -W clippy::all \
             -W clippy::pedantic \
             -A clippy::module-name-repetitions \
             -A clippy::missing-const-for-fn \
             -D warnings
-    desc: "Run cargo clippy linter"
+    desc: 'Run cargo clippy linter'
     silent: true
     sources:
       - src/**/*.rs
@@ -204,66 +210,66 @@ tasks:
     cmds:
       - task: eslint
         vars:
-          CLI_ARGS: "--fix ."
+          CLI_ARGS: '--fix .'
       - echo "- ✅ eslint lint completed"
-    desc: "Lint code using ESLint"
+    desc: 'Lint code using ESLint'
     silent: true
 
   eslint:
     cmds:
       - |
         {{.__TF_MISE_E}} npx eslint {{.CLI_ARGS}}
-    desc: "Run ESLint"
+    desc: 'Run ESLint'
     silent: true
     sources:
-      - "**/*.{json,md,toml,yaml,yml}"
+      - '**/*.{json,md,toml,yaml,yml}'
 
   lint:pylint:
     aliases: [lint:py, lint:python]
     cmds:
       - task: pylint
         vars:
-          CLI_ARGS: "."
+          CLI_ARGS: '.'
       - echo "- ✅ pylint lint completed"
-    desc: "Lint Python scripts using pylint"
+    desc: 'Lint Python scripts using pylint'
     silent: true
 
   pylint:
     cmds:
       - |
         {{.__TF_MISE_E_UV_RUN}} pylint {{.CLI_ARGS}}
-    desc: "Run pylint"
+    desc: 'Run pylint'
     silent: true
     sources:
-      - "**/*.py"
+      - '**/*.py'
 
   lint:pwshlint:
     aliases: [lint:pwsh]
     cmds:
       - task: pwshlint_py
         vars:
-          CLI_ARGS: "--fix"
+          CLI_ARGS: '--fix'
       - echo "- ✅ pwsh lint completed"
-    desc: "Lint PowerShell scripts using PSScriptAnalyzer"
+    desc: 'Lint PowerShell scripts using PSScriptAnalyzer'
     silent: true
 
   pwshlint_py:
     cmds:
       - |
         {{.__TF_MISE_E_UV_RUN}} .scripts/pwshlint.py {{.CLI_ARGS}}
-    desc: "Run PSScriptAnalyzer"
+    desc: 'Run PSScriptAnalyzer'
     silent: true
     sources:
-      - "**/*.ps1"
+      - '**/*.ps1'
 
   lint:shlint:
     aliases: [lint:sh, lint:bash]
     cmds:
       - task: shlint_py
         vars:
-          CLI_ARGS: "--fix"
+          CLI_ARGS: '--fix'
       - echo "- ✅ bash lint completed"
-    desc: "Lint shell scripts using ShellCheck"
+    desc: 'Lint shell scripts using ShellCheck'
     silent: true
 
   shlint_py:
@@ -271,13 +277,13 @@ tasks:
       - cmd: |
           {{.__TF_MISE_E}} python .scripts/shlint.py {{.CLI_ARGS}}
         platforms: [darwin, linux, windows]
-    desc: "Run ShellCheck"
+    desc: 'Run ShellCheck'
     silent: true
     sources:
-      - "**/*.sh"
+      - '**/*.sh'
 
   lint:check:
-    desc: "Run linter without fixing"
+    desc: 'Run linter without fixing'
     cmds:
       - task: lint:check:cargo
       - task: lint:check:eslint
@@ -295,9 +301,9 @@ tasks:
     cmds:
       - task: eslint
         vars:
-          CLI_ARGS: "."
+          CLI_ARGS: '.'
       - echo "- ✅ eslint lint check completed"
-    desc: "Check code using ESLint"
+    desc: 'Check code using ESLint'
     silent: true
 
   lint:check:pylint:
@@ -305,7 +311,7 @@ tasks:
     cmds:
       - task: lint:pylint
       - echo "- ✅ pylint lint check completed"
-    desc: "Check Python scripts using pylint"
+    desc: 'Check Python scripts using pylint'
     silent: true
 
   lint:check:pwshlint:
@@ -313,7 +319,7 @@ tasks:
     cmds:
       - task: pwshlint_py
       - echo "- ✅ pwsh lint completed"
-    desc: "Check PowerShell scripts using PSScriptAnalyzer"
+    desc: 'Check PowerShell scripts using PSScriptAnalyzer'
     silent: true
 
   lint:check:shlint:
@@ -321,32 +327,36 @@ tasks:
     cmds:
       - task: shlint_py
       - echo "- ✅ bash lint completed"
-    desc: "Check shell scripts using ShellCheck"
+    desc: 'Check shell scripts using ShellCheck'
     silent: true
 
   lint-staged:
-    desc: "Run linter on staged files and fix issues"
+    desc: 'Run linter on staged files and fix issues'
     cmds:
       - |
         {{.__TF_MISE_E}} npx -y lint-staged
     silent: true
 
   audit-check:
-    desc: "Check for security vulnerabilities in dependencies"
+    desc: 'Check for security vulnerabilities in dependencies'
     cmds:
       - |
         echo "🔒 Checking for security vulnerabilities..."
-        {{.__TF_MISE_E}} cargo audit
+        if ! {{.__TF_MISE_E}} cargo audit 2>&1; then
+          echo "⚠️ cargo audit failed, attempting to refresh advisory database..."
+          rm -rf ~/.cargo/advisory-db
+          {{.__TF_MISE_E}} cargo audit
+        fi
 
   duplicate-check:
     cmds:
       - |
         {{.__TF_MISE_E}} npm run duplicate-check
       - git add .jscpd/jscpd-badge.svg 2>/dev/null || true
-    desc: "Check for duplicate code using jscpd"
+    desc: 'Check for duplicate code using jscpd'
 
   license-check:
-    desc: "Check license compliance and security advisories"
+    desc: 'Check license compliance and security advisories'
     cmds:
       - |
         echo "📋 Checking licenses and advisories..."
@@ -357,17 +367,17 @@ tasks:
   # ============================================================================
 
   test:
-    desc: "Run tests with coverage"
+    desc: 'Run tests with coverage'
     cmds:
       - task: build
         vars:
-          RUST_BUILD_TYPE: "debug"
+          RUST_BUILD_TYPE: 'debug'
       - cmd: |
           {{.__TF_MISE_E}} cargo test --all-features
       - task: test:gen-coverage
 
   test:gen-coverage:
-    desc: "Generate coverage report"
+    desc: 'Generate coverage report'
     cmds:
       - |
         echo ""
@@ -389,22 +399,22 @@ tasks:
   # ============================================================================
 
   run:
-    desc: "Run application"
+    desc: 'Run application'
     deps:
       - task: build
         vars:
-          RUST_BUILD_TYPE: "debug"
+          RUST_BUILD_TYPE: 'debug'
     cmds:
       - |
         echo "🏃 Running application..."
         {{.__TF_MISE_E}} cargo run
 
   debug:
-    desc: "Run application with debugger (gdb/lldb)"
+    desc: 'Run application with debugger (gdb/lldb)'
     cmds:
       - task: build
         vars:
-          RUST_BUILD_TYPE: "debug"
+          RUST_BUILD_TYPE: 'debug'
       - cmd: |
           {{if eq OS "windows"}}
           echo "⚠️ CLI debugging not supported on Windows."
@@ -431,13 +441,13 @@ tasks:
   # ============================================================================
 
   docs:
-    desc: "Build documentation"
+    desc: 'Build documentation'
     cmds:
       - |
         {{.__TF_MISE_E}} cargo doc --no-deps --all-features
 
   docs:serve:
-    desc: "Serve documentation locally with live reload"
+    desc: 'Serve documentation locally with live reload'
     cmds:
       - |
         {{.__TF_MISE_E}} cargo doc --open --no-deps --all-features
@@ -462,7 +472,7 @@ tasks:
           echo "✅ Validation successful"
           echo "{{.__TF_HEADER_LINE}}"
           echo ""
-    desc: "Run CI pipeline for specific build system and compiler"
+    desc: 'Run CI pipeline for specific build system and compiler'
     silent: true
   # ============================================================================
   # Dependencies
@@ -474,19 +484,17 @@ tasks:
       - task: deps:clean:cargo
       - task: deps:clean:npm
       - task: deps:clean:uv
-    desc: "Clean all project dependencies"
+    desc: 'Clean all project dependencies'
 
   deps:clean:mise:
     cmds:
       - echo "🧹 Cleaning Mise dependencies..."
-      - cmd: rm -rf ~/.local/share/mise/installs
-        platforms: [darwin, linux]
       - cmd: |
-          {{.__TF_MISE_E_PWSH}} 'Remove-Item -Recurse -Force $env:LOCALAPPDATA\mise\installs\*'
-        platforms: [windows]
-      - cmd: rm -rf .mise.lock .mise.local.lock
+          rm -rf \
+            ~/.local/share/mise/installs \
+            ~/AppData/mise/installs
       - echo "✓ Mise environment cleaned"
-    desc: "Clean Mise dependencies"
+    desc: 'Clean Mise dependencies'
 
   deps:clean:cargo:
     cmds:
@@ -494,7 +502,7 @@ tasks:
         echo "🧹 Cleaning Cargo dependencies..."
         rm -rf Cargo.lock target
         echo "✓ Cargo environment cleaned"
-    desc: "Clean Cargo dependencies"
+    desc: 'Clean Cargo dependencies'
 
   deps:clean:npm:
     cmds:
@@ -502,7 +510,7 @@ tasks:
         echo "🧹 Cleaning NodeJs dependencies..."
         rm -rf node_modules package-lock.json
         echo "✓ NodeJs environment cleaned"
-    desc: "Clean NodeJs dependencies"
+    desc: 'Clean NodeJs dependencies'
 
   deps:clean:uv:
     cmds:
@@ -510,7 +518,7 @@ tasks:
         echo "🧹 Cleaning Python dependencies..."
         rm -rf .venv uv.lock
         echo "✓ Python environment cleaned"
-    desc: "Clean Python dependencies"
+    desc: 'Clean Python dependencies'
 
   deps:sync:
     cmds:
@@ -518,34 +526,26 @@ tasks:
       - task: deps:sync:cargo
       - task: deps:sync:npm
       - task: deps:sync:uv
-    desc: "Install all project dependencies"
+    desc: 'Install all project dependencies'
 
   deps:sync:mise:
     cmds:
       - |
         echo "📦 Installing Mise dependencies..."
-        if [ ! -f .mise.local.toml ] && [ ! -f .mise.lock ]; then
-          echo "⚠️  .mise.local.toml not found; sync won't generate .mise.lock automatically."
-          echo "Please create a .mise.local.toml file or a .mise.lock file to proceed."
-          echo ""
-          echo "[settings]"
-          echo "experimental = true"
-          echo "lockfile = true"
-          echo ""
-          exit 1
-        fi
+        touch mise.lock
         mise trust && mise install --yes
         echo "✓ Mise environment ready"
-    desc: "Install Mise dependencies"
+    desc: 'Install Mise dependencies'
 
   deps:sync:cargo:
     cmds:
       - |
         echo "📦 Installing Cargo dependencies..."
+        {{.__TF_MISE_E}} rustup component add rustfmt clippy
         {{.__TF_MISE_E}} cargo fetch
         {{.__TF_MISE_E}} cargo install --force cargo-tarpaulin cargo-deny cargo-audit
         echo "✓ Cargo environment ready"
-    desc: "Install Cargo dependencies"
+    desc: 'Install Cargo dependencies'
 
   deps:sync:npm:
     cmds:
@@ -554,7 +554,7 @@ tasks:
         {{.__TF_MISE_E}} npm install
         {{.__TF_MISE_E}} npx husky
         echo "✓ NodeJs environment ready"
-    desc: "Install NodeJs dependencies"
+    desc: 'Install NodeJs dependencies'
 
   deps:sync:uv:
     cmds:
@@ -562,22 +562,23 @@ tasks:
         echo "📦 Installing Python dependencies..."
         {{.__TF_MISE_E}} uv sync
         echo "✓ Python environment ready"
-    desc: "Install Python dependencies"
+    desc: 'Install Python dependencies'
 
   deps:refresh:
     cmds:
       - task: deps:refresh:mise
       - task: deps:refresh:cargo
       - task: deps:refresh:npm
-    desc: "Refresh all project dependencies"
+    desc: 'Refresh all project dependencies'
 
   deps:refresh:mise:
     cmds:
       - |
         echo "🔄 Refreshing Mise packages..."
-        mise upgrade
+        touch mise.lock
+        mise trust && mise upgrade
         echo "✓ Packages refreshed"
-    desc: "Refresh all Mise packages (update dependencies)"
+    desc: 'Refresh all Mise packages (update dependencies)'
 
   deps:refresh:cargo:
     cmds:
@@ -586,7 +587,7 @@ tasks:
         {{.__TF_MISE_E}} cargo update
         {{.__TF_MISE_E}} cargo install --force cargo-tarpaulin cargo-deny cargo-audit
         echo "✓ Packages refreshed"
-    desc: "Refresh all Cargo packages (update dependencies)"
+    desc: 'Refresh all Cargo packages (update dependencies)'
 
   deps:refresh:npm:
     cmds:
@@ -596,7 +597,7 @@ tasks:
           && {{.__TF_MISE_E}} npm update \
           && {{.__TF_MISE_E}} npm audit fix
         echo "✓ Packages refreshed"
-    desc: "Refresh all NodeJs packages (update dependencies)"
+    desc: 'Refresh all NodeJs packages (update dependencies)'
 
   deps:refresh:uv:
     cmds:
@@ -604,4 +605,4 @@ tasks:
         echo "🔄 Refreshing Python packages..."
         {{.__TF_MISE_E}} uv sync --upgrade
         echo "✓ Packages refreshed"
-    desc: "Refresh all Python packages (update dependencies)"
+    desc: 'Refresh all Python packages (update dependencies)'

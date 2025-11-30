@@ -18,6 +18,7 @@ pids
 # Coverage files
 lib-cov
 coverage
+.coverage
 *.lcov
 
 # Node modules

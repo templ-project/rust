@@ -64,7 +64,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           pr: 'true'
-          workspaces: .:text
+          workspaces: .:rust
 
       - name: Output new version
         run: |
