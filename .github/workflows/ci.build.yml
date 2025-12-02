@@ -50,7 +50,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: build-${{ inputs.os }}-${{ inputs.arch }}
+          name: build-${{ inputs.target }}
           path: |
             target/${{ inputs.target }}/release/*
             !target/${{ inputs.target }}/release/.fingerprint
