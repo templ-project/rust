@@ -93,66 +93,11 @@ jobs:
         run: |
           mkdir -p release-assets
 
-          # Get project name from Cargo.toml
-          PROJECT_NAME=$(grep '^name' Cargo.toml | head -1 | sed 's/.*= *"\([^"]*\)".*/\1/')
-          echo "Project name: $PROJECT_NAME"
-
-          # Package Linux x86_64 artifact
-          if [ -d "build-artifacts/build-ubuntu-latest-x86_64" ]; then
-            echo "📦 Packaging Linux x86_64..."
-            cd build-artifacts/build-ubuntu-latest-x86_64
-            # Find the binary (exclude .d files and other non-executables)
-            BINARY=$(find . -type f -executable -name "$PROJECT_NAME" 2>/dev/null || find . -type f ! -name "*.d" ! -name "*.rlib" | head -1)
-            if [ -n "$BINARY" ]; then
-              chmod +x "$BINARY" 2>/dev/null || true
-              tar -czf "../../release-assets/${PROJECT_NAME}-${{ inputs.tag }}-x86_64-unknown-linux-gnu.tar.gz" \
-                  -C "$(dirname "$BINARY")" "$(basename "$BINARY")"
-              echo "✓ Created Linux x86_64 artifact"
-            else
-              echo "⚠ No binary found for Linux x86_64"
-            fi
-            cd ../..
-          else
-            echo "⚠ Linux x86_64 build not found"
-          fi
-
-          # Package macOS aarch64 artifact
-          if [ -d "build-artifacts/build-macos-latest-aarch64" ]; then
-            echo "📦 Packaging macOS aarch64..."
-            cd build-artifacts/build-macos-latest-aarch64
-            BINARY=$(find . -type f -name "$PROJECT_NAME" 2>/dev/null || find . -type f ! -name "*.d" ! -name "*.rlib" | head -1)
-            if [ -n "$BINARY" ]; then
-              chmod +x "$BINARY" 2>/dev/null || true
-              tar -czf "../../release-assets/${PROJECT_NAME}-${{ inputs.tag }}-aarch64-apple-darwin.tar.gz" \
-                  -C "$(dirname "$BINARY")" "$(basename "$BINARY")"
-              echo "✓ Created macOS aarch64 artifact"
-            else
-              echo "⚠ No binary found for macOS aarch64"
-            fi
-            cd ../..
-          else
-            echo "⚠ macOS aarch64 build not found"
-          fi
-
-          # Package Windows x86_64 artifact
-          if [ -d "build-artifacts/build-windows-latest-x86_64" ]; then
-            echo "📦 Packaging Windows x86_64..."
-            cd build-artifacts/build-windows-latest-x86_64
-            BINARY=$(find . -type f -name "${PROJECT_NAME}.exe" 2>/dev/null || find . -type f -name "*.exe" | head -1)
-            if [ -n "$BINARY" ]; then
-              zip -j "../../release-assets/${PROJECT_NAME}-${{ inputs.tag }}-x86_64-pc-windows-msvc.zip" "$BINARY"
-              echo "✓ Created Windows x86_64 artifact"
-            else
-              echo "⚠ No binary found for Windows x86_64"
-            fi
-            cd ../..
-          else
-            echo "⚠ Windows x86_64 build not found"
-          fi
+          ls -la build-artifacts
 
           echo ""
           echo "Release assets created:"
-          ls -lah release-assets/ || echo "No release assets created"
+          ls -lah release-assets/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

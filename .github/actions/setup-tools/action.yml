@@ -22,6 +22,10 @@ runs:
       shell: bash
       run: |
         curl https://mise.run | sh
+        # TODO: make sure the command works for both Linux and MacOS
+        # echo "eval \"\$(/Users/runner/.local/bin/mise activate bash)\"" >> ~/.bashrc
+        mise activate
+        mise --version
 
     - name: Install Mise (Windows)
       env:
@@ -34,9 +38,9 @@ runs:
     - name: Update Mise
       env:
         GITHUB_TOKEN: ${{ github.token }}
+      if: ${{ runner.os == 'Windows' }}
       shell: bash
       run: |
-        # mise activate
         mise self-update
         mise --version
 
