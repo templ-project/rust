@@ -47,22 +47,6 @@ jobs:
           task build RUST_BUILD_TARGET=${{ inputs.target }}
         shell: bash
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-${{ inputs.os }}-${{ inputs.arch }}
-          path: |
-            target/${{ inputs.target }}/release/*
-            !target/${{ inputs.target }}/release/.fingerprint
-            !target/${{ inputs.target }}/release/build
-            !target/${{ inputs.target }}/release/deps
-            !target/${{ inputs.target }}/release/examples
-            !target/${{ inputs.target }}/release/incremental
-            !target/${{ inputs.target }}/release/*.d
-            !target/${{ inputs.target }}/release/*.rlib
-          if-no-files-found: warn
-          retention-days: 7
-
   lint:
     runs-on: ${{ inputs.os }}
     needs: [setup, build]

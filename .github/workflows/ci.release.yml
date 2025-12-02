@@ -12,6 +12,16 @@ on:
         required: false
         type: boolean
         default: false
+      os:
+        description: 'Operating system runner'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+      target:
+        description: 'Rust target triple'
+        required: false
+        type: string
+        default: 'x86_64-unknown-linux-gnu'
   workflow_dispatch:
     inputs:
       tag:
@@ -23,6 +33,16 @@ on:
         required: false
         type: boolean
         default: false
+      os:
+        description: 'Operating system runner'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+      target:
+        description: 'Rust target triple'
+        required: false
+        type: string
+        default: 'x86_64-unknown-linux-gnu'
       skip_validation:
         description: 'Skip build validation before release'
         required: false
@@ -50,17 +70,48 @@ jobs:
           task test
         shell: bash
 
-  release:
-    runs-on: ubuntu-latest
+  # Build release binary for the specified platform
+  build-release:
     needs: [validate]
     if: always() && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
+    runs-on: ${{ inputs.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: ./.github/actions/setup-tools
+
+      - name: Add Rust target
+        run: rustup target add ${{ inputs.target }}
+        shell: bash
+
+      - name: Build release binary
+        run: task build RUST_BUILD_TARGET=${{ inputs.target }}
+        shell: bash
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ inputs.target }}
+          path: |
+            target/${{ inputs.target }}/release/rust-template
+            target/${{ inputs.target }}/release/rust-template.exe
+          if-no-files-found: warn
+          retention-days: 1
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [build-release]
+    if: always() && needs.build-release.result == 'success'
     permissions:
       contents: write
     steps:
-      - name: Debug inputs.prerelease
+      - name: Debug inputs
         run: |
           echo "tag = ${{ inputs.tag }}"
           echo "prerelease = ${{ inputs.prerelease }}"
+          echo "os = ${{ inputs.os }}"
+          echo "target = ${{ inputs.target }}"
 
       - name: Checkout code
         uses: actions/checkout@v6
@@ -78,28 +129,63 @@ jobs:
             echo "Release ${{ inputs.tag }}" > CHANGELOG.md
           fi
 
-      - name: Download all build artifacts
+      - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
+          name: release-${{ inputs.target }}
           path: build-artifacts
-          pattern: build-*
 
       - name: List downloaded artifacts
         run: |
           echo "Downloaded artifacts:"
           find build-artifacts -type f | head -50
 
-      - name: Create distribution packages
+      - name: Create distribution package
         run: |
           mkdir -p release-assets
 
-          ls -la build-artifacts
+          TARGET="${{ inputs.target }}"
+          echo "Processing target: $TARGET"
+
+          # Find the binary (rust-template or rust-template.exe)
+          BINARY=$(find build-artifacts -type f \( -name 'rust-template' -o -name 'rust-template.exe' \) | head -1)
+
+          if [ -z "$BINARY" ]; then
+            echo "No binary found in build-artifacts"
+            exit 1
+          fi
+
+          FILENAME=$(basename "$BINARY")
+          echo "Found binary: $BINARY"
+
+          # Extract OS and ARCH from target triple (e.g., x86_64-unknown-linux-gnu -> linux, x86_64)
+          ARCH=$(echo "$TARGET" | cut -d'-' -f1)
+          if [[ "$TARGET" == *"linux"* ]]; then
+            OS="linux"
+          elif [[ "$TARGET" == *"darwin"* ]]; then
+            OS="darwin"
+          elif [[ "$TARGET" == *"windows"* ]]; then
+            OS="windows"
+          else
+            OS="unknown"
+          fi
+
+          # Determine archive type based on target
+          if [[ "$TARGET" == *"windows"* ]]; then
+            ARCHIVE_NAME="release-assets/rust-template_${OS}_${ARCH}.zip"
+            zip -j "$ARCHIVE_NAME" "$BINARY"
+            echo "Created archive: $ARCHIVE_NAME"
+          else
+            ARCHIVE_NAME="release-assets/rust-template_${OS}_${ARCH}.tar.gz"
+            tar -czf "$ARCHIVE_NAME" -C "$(dirname "$BINARY")" "$FILENAME"
+            echo "Created archive: $ARCHIVE_NAME"
+          fi
 
           echo ""
           echo "Release assets created:"
           ls -lah release-assets/
 
-      - name: Create GitHub Release
+      - name: Upload release asset to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}

@@ -8,6 +8,27 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  # Define build matrix in one place
+  matrix:
+    name: Define Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.set-matrix.outputs.targets }}
+    steps:
+      - name: Set matrix
+        id: set-matrix
+        run: |
+          # To list supported architectures, run:
+          # mise exec -- rustc --print target-list
+          # echo 'targets=[
+          #   {"os":"ubuntu-latest","arch":"x86_64","target":"x86_64-unknown-linux-gnu"},
+          #   {"os":"macos-latest","arch":"aarch64","target":"aarch64-apple-darwin"},
+          #   {"os":"windows-latest","arch":"x86_64","target":"x86_64-pc-windows-msvc"}
+          # ]' | tr -d '\n' | tr -s ' ' >> $GITHUB_OUTPUT
+          echo 'targets=[
+            {"os":"ubuntu-latest","arch":"x86_64","target":"x86_64-unknown-linux-gnu"}
+          ]' | tr -d '\n' | tr -s ' ' >> $GITHUB_OUTPUT
+
   test-scaffold:
     name: Test Scaffold
     runs-on: ubuntu-latest
@@ -24,31 +45,18 @@ jobs:
 
   # Validation & Build matrix for different platforms
   build:
-    name: Build (${{ matrix.os }}, ${{ matrix.arch }})
+    name: Build (${{ matrix.target.os }}, ${{ matrix.target.arch }})
+    needs: [matrix]
     if: |
       !contains(github.event.head_commit.message, 'version_bump/')
     strategy:
       matrix:
-        # To list supported architectures, run:
-        # mise exec -- rustc --print target-list
-        include:
-          # Linux
-          - os: ubuntu-latest
-            arch: x86_64
-            target: x86_64-unknown-linux-gnu
-          # macOS
-          - os: macos-latest
-            arch: aarch64
-            target: aarch64-apple-darwin
-          # Windows
-          - os: windows-latest
-            arch: x86_64
-            target: x86_64-pc-windows-msvc
+        target: ${{ fromJson(needs.matrix.outputs.targets) }}
     uses: ./.github/workflows/ci.build.yml
     with:
-      os: ${{ matrix.os }}
-      arch: ${{ matrix.arch }}
-      target: ${{ matrix.target }}
+      os: ${{ matrix.target.os }}
+      arch: ${{ matrix.target.arch }}
+      target: ${{ matrix.target.target }}
 
   # Version bump (only on main branch push, uses conventional commits)
   version-bump:
@@ -102,14 +110,19 @@ jobs:
 
   # Release (only on main branch push after version bump)
   release:
-    name: Create Release
+    name: Create Release (${{ matrix.target.target }})
+    needs: [matrix, version-detect]
     if: |
       always()
       && needs.version-detect.outputs.tag != ''
-    needs: [version-detect]
+    strategy:
+      matrix:
+        target: ${{ fromJson(needs.matrix.outputs.targets) }}
     uses: ./.github/workflows/ci.release.yml
     permissions:
       contents: write
     with:
       tag: ${{ needs.version-detect.outputs.tag }}
       prerelease: false
+      os: ${{ matrix.target.os }}
+      target: ${{ matrix.target.target }}
