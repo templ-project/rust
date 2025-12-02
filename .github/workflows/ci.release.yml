@@ -93,7 +93,28 @@ jobs:
         run: |
           mkdir -p release-assets
 
-          ls -la build-artifacts
+          find ./build-artifacts -type f -name 'rust-template' | while read BINARY; do
+            FILENAME=$(basename "$BINARY")
+            TARGET_DIR=$(dirname "$BINARY")
+            OS_ARCH=$(basename "$TARGET_DIR")
+
+            RELEASE_LABEL=$(echo $TARGET_DIR | awk -F'-' 'NF >= 4 { print "'$BINARY'" "_" $3 "_" $2 }')
+
+            # Create a tar.gz archive for Unix-like systems
+            if [[ "$OS_ARCH" == *"linux"* || "$OS_ARCH" == *"darwin"* ]]; then
+              ARCHIVE_NAME="release-assets/${RELEASE_LABEL}.tar.gz"
+              tar -czf "$ARCHIVE_NAME" -C "$TARGET_DIR" "$FILENAME"
+              echo "Created archive: $ARCHIVE_NAME"
+            fi
+
+            # Create a zip archive for Windows
+            if [[ "$OS_ARCH" == *"windows"* ]]; then
+              ARCHIVE_NAME="release-assets/${RELEASE_LABEL}.zip"
+              # powershell Compress-Archive -Path "$BINARY" -DestinationPath "$ARCHIVE_NAME"
+              zip -j "$ARCHIVE_NAME" "$BINARY"
+              echo "Created archive: $ARCHIVE_NAME"
+            fi
+          done
 
           echo ""
           echo "Release assets created:"
