@@ -12,7 +12,7 @@ on:
         required: false
         type: boolean
         default: false
-      os:
+      runs-on:
         description: 'Operating system runner'
         required: false
         type: string
@@ -33,7 +33,7 @@ on:
         required: false
         type: boolean
         default: false
-      os:
+      runs-on:
         description: 'Operating system runner'
         required: false
         type: string
@@ -50,59 +50,20 @@ on:
         default: false
 
 jobs:
-  # Optional validation when manually triggered
-  validate:
+  # Optional validation when manually triggered (includes build for artifact)
+  quality:
+    name: Quality
     if: github.event_name == 'workflow_dispatch' && !inputs.skip_validation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag }}
-      - uses: ./.github/actions/setup-tools
-
-      - name: Lint Code
-        run: |
-          task lint
-        shell: bash
-
-      - name: Test Code
-        run: |
-          task test
-        shell: bash
-
-  # Build release binary for the specified platform
-  build-release:
-    needs: [validate]
-    if: always() && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
-    runs-on: ${{ inputs.os }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag }}
-      - uses: ./.github/actions/setup-tools
-
-      - name: Add Rust target
-        run: rustup target add ${{ inputs.target }}
-        shell: bash
-
-      - name: Build release binary
-        run: task build RUST_BUILD_TARGET=${{ inputs.target }}
-        shell: bash
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ inputs.target }}
-          path: |
-            target/${{ inputs.target }}/release/rust-template
-            target/${{ inputs.target }}/release/rust-template.exe
-          if-no-files-found: warn
-          retention-days: 1
+    uses: ./.github/workflows/ci.quality.yml
+    with:
+      runs-on: ${{ inputs.runs-on }}
+      target: ${{ inputs.target }}
+      jobs: build,lint,test
 
   release:
     runs-on: ubuntu-latest
-    needs: [build-release]
-    if: always() && needs.build-release.result == 'success'
+    needs: [quality]
+    if: always() && (needs.quality.result == 'success' || needs.quality.result == 'skipped')
     permissions:
       contents: write
     steps:
@@ -110,7 +71,7 @@ jobs:
         run: |
           echo "tag = ${{ inputs.tag }}"
           echo "prerelease = ${{ inputs.prerelease }}"
-          echo "os = ${{ inputs.os }}"
+          echo "runs-on = ${{ inputs.runs-on }}"
           echo "target = ${{ inputs.target }}"
 
       - name: Checkout code
@@ -131,9 +92,31 @@ jobs:
 
       - name: Download build artifact
         uses: actions/download-artifact@v4
+        continue-on-error: true
+        id: download-artifact
         with:
-          name: release-${{ inputs.target }}
+          name: build-${{ inputs.target }}
           path: build-artifacts
+
+      - name: Build if artifact not found
+        if: steps.download-artifact.outcome == 'failure'
+        run: |
+          echo "::notice::⚠️ No artifact found, building release binary..."
+        shell: bash
+
+      - name: Setup tools for fallback build
+        if: steps.download-artifact.outcome == 'failure'
+        uses: ./.github/actions/setup-tools
+
+      - name: Fallback build
+        if: steps.download-artifact.outcome == 'failure'
+        run: |
+          rustup target add ${{ inputs.target }}
+          task build RUST_BUILD_TARGET=${{ inputs.target }}
+          mkdir -p build-artifacts
+          cp target/${{ inputs.target }}/release/rust-template build-artifacts/ 2>/dev/null || true
+          cp target/${{ inputs.target }}/release/rust-template.exe build-artifacts/ 2>/dev/null || true
+        shell: bash
 
       - name: List downloaded artifacts
         run: |

@@ -1,6 +1,9 @@
+dependencies = {}
+dev-dependencies = {}
+
 [package]
 name = "rust-template"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Templ Project"]
 edition = "2021"
 rust-version = "1.75.0"
@@ -12,25 +15,13 @@ license = "MIT"
 keywords = ["template", "bootstrap", "rust", "cargo"]
 categories = ["development-tools"]
 
-# Binary target (for CLI)
 [[bin]]
 name = "rust-template"
 path = "src/main.rs"
 
-# Library target (for lib usage)
 [lib]
 name = "rust_template"
 path = "src/lib.rs"
-
-[dependencies]
-# Add runtime dependencies here
-# For example:
-# thiserror = "1.0"
-# anyhow = "1.0"
-
-[dev-dependencies]
-# Test utilities
-# For property-based testing: proptest = "1.0"
 
 [profile.dev]
 opt-level = 0

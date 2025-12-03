@@ -3,7 +3,7 @@ name: CI » Validate & Build
 on:
   workflow_call:
     inputs:
-      os:
+      runs-on:
         description: 'Operating system to run on'
         required: false
         type: string
@@ -18,17 +18,23 @@ on:
         required: false
         type: string
         default: 'x86_64-unknown-linux-gnu'
+      jobs:
+        description: 'Comma-separated list of jobs to run (build, lint, test, duplicate-check)'
+        required: false
+        type: string
+        default: 'build,lint,test'
 
 jobs:
   # Setup job runs once to populate mise cache for parallel jobs
   setup:
-    runs-on: ${{ inputs.os }}
+    runs-on: ${{ inputs.runs-on }}
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-tools
 
   build:
-    runs-on: ${{ inputs.os }}
+    runs-on: ${{ inputs.runs-on }}
+    if: contains(inputs.jobs, 'build')
     needs: [setup]
     steps:
       - uses: actions/checkout@v6
@@ -47,8 +53,19 @@ jobs:
           task build RUST_BUILD_TARGET=${{ inputs.target }}
         shell: bash
 
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ inputs.target }}
+          path: |
+            target/${{ inputs.target }}/release/rust-template
+            target/${{ inputs.target }}/release/rust-template.exe
+          if-no-files-found: warn
+          retention-days: 7
+
   lint:
-    runs-on: ${{ inputs.os }}
+    runs-on: ${{ inputs.runs-on }}
+    if: always() && contains(inputs.jobs, 'lint') && (needs.build.result == 'success' || needs.build.result == 'skipped')
     needs: [setup, build]
     steps:
       - uses: actions/checkout@v6
@@ -71,7 +88,8 @@ jobs:
         shell: bash
 
   test:
-    runs-on: ${{ inputs.os }}
+    runs-on: ${{ inputs.runs-on }}
+    if: always() && contains(inputs.jobs, 'test') && (needs.lint.result == 'success' || needs.lint.result == 'skipped')
     needs: [setup, lint]
     steps:
       - uses: actions/checkout@v6
@@ -86,7 +104,7 @@ jobs:
         shell: bash
 
       - name: Run Tests with Coverage
-        if: ${{ inputs.os == 'ubuntu-latest' }}
+        if: inputs.runs-on == 'ubuntu-latest'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONIOENCODING: utf-8
@@ -95,8 +113,8 @@ jobs:
         shell: bash
 
   duplicate-check:
-    if: ${{ inputs.os == 'ubuntu-latest' }}
-    runs-on: ${{ inputs.os }}
+    if: inputs.runs-on == 'ubuntu-latest' && contains(inputs.jobs, 'duplicate-check')
+    runs-on: ${{ inputs.runs-on }}
     needs: [setup]
     steps:
       - uses: actions/checkout@v6
