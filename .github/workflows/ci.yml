@@ -54,6 +54,8 @@ jobs:
       matrix:
         target: ${{ fromJson(needs.matrix.outputs.targets) }}
     uses: ./.github/workflows/ci.quality.yml
+    permissions:
+      contents: write
     with:
       runs-on: ${{ matrix.target.runs-on }}
       arch: ${{ matrix.target.arch }}
@@ -115,7 +117,7 @@ jobs:
   # Release (only on main branch push after version bump)
   release:
     name: Create Release (${{ matrix.target.target }})
-    needs: [matrix, version-detect]
+    needs: [matrix, build, version-detect]
     if: |
       always()
       && needs.version-detect.outputs.tag != ''
@@ -130,3 +132,15 @@ jobs:
       prerelease: false
       runs-on: ${{ matrix.target.runs-on }}
       target: ${{ matrix.target.target }}
+      draft_tag: draft-${{ github.sha }}
+
+  # Cleanup draft releases after release completes
+  cleanup:
+    name: Cleanup Drafts
+    needs: [release]
+    if: always() && needs.release.result == 'success'
+    uses: ./.github/workflows/ci.cleanup.yml
+    permissions:
+      contents: write
+    with:
+      draft_tag: draft-${{ github.sha }}

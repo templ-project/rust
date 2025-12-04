@@ -4,7 +4,7 @@
 
 ### Bug Fixes
 
-* attempt for creating linux release ([7c1c71b](https://github.com/templ-project/rust/commit/7c1c71bd8960a888109f6a268cfe3b9afa6f71c5))
+- attempt for creating linux release ([7c1c71b](https://github.com/templ-project/rust/commit/7c1c71bd8960a888109f6a268cfe3b9afa6f71c5))
 
 ## 1.0.2 (2025-12-04)
 

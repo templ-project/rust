@@ -22,6 +22,11 @@ on:
         required: false
         type: string
         default: 'x86_64-unknown-linux-gnu'
+      draft_tag:
+        description: 'Draft release tag to download assets from (e.g., draft-abc123)'
+        required: false
+        type: string
+        default: ''
   workflow_dispatch:
     inputs:
       tag:
@@ -48,6 +53,11 @@ on:
         required: false
         type: boolean
         default: false
+      draft_tag:
+        description: 'Draft release tag to download assets from (e.g., draft-abc123)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   # Optional validation when manually triggered (includes build for artifact)
@@ -90,44 +100,41 @@ jobs:
             echo "Release ${{ inputs.tag }}" > CHANGELOG.md
           fi
 
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        id: download-artifact
-        with:
-          name: build-${{ inputs.target }}
-          path: build-artifacts
-
-      - name: Build if artifact not found
-        if: steps.download-artifact.outcome == 'failure'
+      - name: Find draft release
+        id: find-draft
         run: |
-          echo "::notice::⚠️ No artifact found, building release binary..."
-        shell: bash
+          DRAFT_TAG="${{ inputs.draft_tag }}"
 
-      - name: List downloaded artifacts
-        run: |
-          echo "Downloaded artifacts:"
-          find build-artifacts -type f | head -50
+          if [ -n "$DRAFT_TAG" ]; then
+            echo "Using provided draft tag: $DRAFT_TAG"
+            echo "draft_tag=$DRAFT_TAG" >> $GITHUB_OUTPUT
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            # Find the most recent draft release with our prefix
+            echo "Searching for draft releases..."
+            DRAFT=$(gh release list --limit 50 | grep -E "^draft-.*Draft" | head -1 | awk '{print $1}' || true)
 
-      - name: Create distribution package
+            if [ -n "$DRAFT" ]; then
+              echo "Found draft release: $DRAFT"
+              echo "draft_tag=$DRAFT" >> $GITHUB_OUTPUT
+              echo "found=true" >> $GITHUB_OUTPUT
+            else
+              echo "No draft release found"
+              echo "found=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download assets from draft release
+        id: download-draft
+        if: steps.find-draft.outputs.found == 'true'
         run: |
           mkdir -p release-assets
-
+          DRAFT_TAG="${{ steps.find-draft.outputs.draft_tag }}"
           TARGET="${{ inputs.target }}"
-          echo "Processing target: $TARGET"
 
-          # Find the binary (rust-template or rust-template.exe)
-          BINARY=$(find build-artifacts -type f \( -name 'rust-template' -o -name 'rust-template.exe' \) | head -1)
-
-          if [ -z "$BINARY" ]; then
-            echo "No binary found in build-artifacts"
-            exit 1
-          fi
-
-          FILENAME=$(basename "$BINARY")
-          echo "Found binary: $BINARY"
-
-          # Extract OS and ARCH from target triple (e.g., x86_64-unknown-linux-gnu -> linux, x86_64)
+          # Extract OS and arch for filename matching
           ARCH=$(echo "$TARGET" | cut -d'-' -f1)
           if [[ "$TARGET" == *"linux"* ]]; then
             OS="linux"
@@ -139,19 +146,28 @@ jobs:
             OS="unknown"
           fi
 
-          # Determine archive type based on target
-          if [[ "$TARGET" == *"windows"* ]]; then
-            ARCHIVE_NAME="release-assets/rust-template_${OS}_${ARCH}.zip"
-            zip -j "$ARCHIVE_NAME" "$BINARY"
-            echo "Created archive: $ARCHIVE_NAME"
-          else
-            ARCHIVE_NAME="release-assets/rust-template_${OS}_${ARCH}.tar.gz"
-            tar -czf "$ARCHIVE_NAME" -C "$(dirname "$BINARY")" "$FILENAME"
-            echo "Created archive: $ARCHIVE_NAME"
-          fi
+          echo "Looking for: rust-template_${OS}_${ARCH}.*"
 
-          echo ""
-          echo "Release assets created:"
+          # Download matching asset from draft
+          gh release download "$DRAFT_TAG" \
+            --dir release-assets \
+            --pattern "rust-template_${OS}_${ARCH}.*"
+
+          echo "Downloaded assets:"
+          ls -la release-assets/
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fail if no draft release found
+        if: steps.find-draft.outputs.found != 'true'
+        run: |
+          echo "::error::No draft release found. Build artifacts are missing."
+          echo "Please ensure the build workflow completed successfully before releasing."
+          exit 1
+
+      - name: List release assets
+        run: |
+          echo "Release assets:"
           ls -lah release-assets/
 
       - name: Upload release asset to GitHub Release
