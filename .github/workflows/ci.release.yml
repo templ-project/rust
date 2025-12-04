@@ -104,20 +104,6 @@ jobs:
           echo "::notice::⚠️ No artifact found, building release binary..."
         shell: bash
 
-      - name: Setup tools for fallback build
-        if: steps.download-artifact.outcome == 'failure'
-        uses: ./.github/actions/setup-tools
-
-      - name: Fallback build
-        if: steps.download-artifact.outcome == 'failure'
-        run: |
-          rustup target add ${{ inputs.target }}
-          task build RUST_BUILD_TARGET=${{ inputs.target }}
-          mkdir -p build-artifacts
-          cp target/${{ inputs.target }}/release/rust-template build-artifacts/ 2>/dev/null || true
-          cp target/${{ inputs.target }}/release/rust-template.exe build-artifacts/ 2>/dev/null || true
-        shell: bash
-
       - name: List downloaded artifacts
         run: |
           echo "Downloaded artifacts:"
