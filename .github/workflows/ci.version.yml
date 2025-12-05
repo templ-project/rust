@@ -4,36 +4,40 @@ on:
   workflow_call:
     inputs:
       runs-on:
-        description: 'Operating system to run on'
+        description: Operating system to run on
         required: false
         type: string
-        default: 'ubuntu-latest'
+        default: ubuntu-latest
       target:
-        description: 'Rust target triple'
+        description: Rust target triple
         required: false
         type: string
-        default: 'x86_64-unknown-linux-gnu'
+        default: x86_64-unknown-linux-gnu
     secrets:
       GH_TOKEN:
-        description: 'GitHub token for version bump and PR creation'
+        description: GitHub token for version bump and PR creation
         required: true
   workflow_dispatch:
     inputs:
       skip_validation:
-        description: 'Skip build validation before versioning'
+        description: Skip build validation before versioning
         required: false
         type: boolean
         default: false
       runs-on:
-        description: 'Operating system to run on'
+        description: Operating system runner
         required: false
-        type: string
-        default: 'ubuntu-latest'
+        type: choice
+        options:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        default: ubuntu-latest
       target:
-        description: 'Rust target triple'
+        description: Rust target triple
         required: false
         type: string
-        default: 'x86_64-unknown-linux-gnu'
+        default: x86_64-unknown-linux-gnu
 
 jobs:
   # Optional validation when manually triggered
@@ -64,7 +68,7 @@ jobs:
         uses: dragoscops/bumpalicious@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          pr: 'true'
+          pr: true
           workspaces: .:rust
 
       - name: Output new version

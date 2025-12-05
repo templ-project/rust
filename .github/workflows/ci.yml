@@ -20,15 +20,15 @@ jobs:
         run: |
           # To list supported architectures, run:
           # mise exec -- rustc --print target-list
-          # echo 'targets=[
-          #   {"runs-on":"ubuntu-latest","arch":"x86_64","target":"x86_64-unknown-linux-gnu"},
-          #   {"runs-on":"macos-latest","arch":"aarch64","target":"aarch64-apple-darwin"},
-          #   {"runs-on":"windows-latest","arch":"x86_64","target":"x86_64-pc-windows-msvc"}
-          # ]' | tr -d '\n' | tr -s ' ' >> $GITHUB_OUTPUT
-
           echo 'targets=[
-            {"runs-on":"ubuntu-latest","arch":"x86_64","target":"x86_64-unknown-linux-gnu"}
+            {"runs-on":"ubuntu-latest","target":"x86_64-unknown-linux-gnu"},
+            {"runs-on":"macos-latest","target":"aarch64-apple-darwin"},
+            {"runs-on":"windows-latest","target":"x86_64-pc-windows-msvc"}
           ]' | tr -d '\n' | tr -s ' ' >> $GITHUB_OUTPUT
+          # use bellow version to test single target, before expanding matrix
+          # echo 'targets=[
+          #   {"runs-on":"ubuntu-latest","target":"x86_64-unknown-linux-gnu"}
+          # ]' | tr -d '\n' | tr -s ' ' >> $GITHUB_OUTPUT
 
   test-scaffold:
     name: Test Scaffold
@@ -48,7 +48,7 @@ jobs:
   # Option A: build,lint,test before version bump (slower, but validates before release)
   # Option B: lint,test only before version bump (faster, build happens at release time)
   quality:
-    name: Quality (${{ matrix.target.runs-on }}, ${{ matrix.target.arch }})
+    name: Quality (${{ matrix.target.runs-on }}, ${{ matrix.target.target }})
     needs: [matrix]
     if: |
       !contains(github.event.head_commit.message, 'version_bump/')
@@ -60,7 +60,6 @@ jobs:
       contents: write
     with:
       runs-on: ${{ matrix.target.runs-on }}
-      arch: ${{ matrix.target.arch }}
       target: ${{ matrix.target.target }}
       jobs: lint,test # Change to 'build,lint,test' to build before version bump
 
