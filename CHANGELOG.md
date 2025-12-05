@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.5 (2025-12-05)
+
+### Bug Fixes
+
+* testing draft release v2 ([98096e3](https://github.com/templ-project/rust/commit/98096e3caeb1bb842a9933fb043462e85abb0c4c))
+
 ## 1.0.4 (2025-12-05)
 
 ### Bug Fixes
