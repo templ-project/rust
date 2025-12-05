@@ -35,33 +35,37 @@ jobs:
       - uses: ./.github/actions/setup-tools
 
       - name: Add Rust target
-        run: |
-          rustup target add ${{ inputs.target }}
+        run: rustup target add ${{ inputs.target }}
         shell: bash
 
       - name: Build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONIOENCODING: utf-8
-        run: |
-          task build RUST_BUILD_TARGET=${{ inputs.target }}
+        run: task build RUST_BUILD_TARGET=${{ inputs.target }}
         shell: bash
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-${{ inputs.target }}
-          path: |
-            target/${{ inputs.target }}/release/rust-template
-            target/${{ inputs.target }}/release/rust-template.exe
-          if-no-files-found: warn
-          retention-days: 7
 
       - name: Parse target
         id: target
-        uses: ./.github/actions/parse-target
-        with:
-          target: ${{ inputs.target }}
+        shell: bash
+        run: |
+          TARGET="${{ inputs.target }}"
+          ARCH=$(echo "$TARGET" | cut -d'-' -f1)
+          
+          if [[ "$TARGET" == *"linux"* ]]; then
+            OS="linux"; EXT=""; ARCHIVE_EXT=".tar.gz"
+          elif [[ "$TARGET" == *"darwin"* ]]; then
+            OS="darwin"; EXT=""; ARCHIVE_EXT=".tar.gz"
+          elif [[ "$TARGET" == *"windows"* ]]; then
+            OS="windows"; EXT=".exe"; ARCHIVE_EXT=".zip"
+          else
+            OS="unknown"; EXT=""; ARCHIVE_EXT=".tar.gz"
+          fi
+          
+          echo "os=$OS" >> $GITHUB_OUTPUT
+          echo "arch=$ARCH" >> $GITHUB_OUTPUT
+          echo "extension=$EXT" >> $GITHUB_OUTPUT
+          echo "archive_ext=$ARCHIVE_EXT" >> $GITHUB_OUTPUT
 
       - name: Create distribution archive
         id: archive
@@ -79,20 +83,13 @@ jobs:
           echo "Created: $ARCHIVE"
         shell: bash
 
-      - name: Upload to draft release
-        uses: softprops/action-gh-release@v2
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: draft-${{ github.sha }}
-          name: 'Draft Build ${{ github.sha }}'
-          body: |
-            Automated draft release for commit ${{ github.sha }}
-            Target: ${{ inputs.target }}
-
-            This draft will be cleaned up after the final release is published.
-          draft: true
-          files: ${{ steps.archive.outputs.archive }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: build-${{ inputs.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
 
   # lint:
   #   runs-on: ${{ inputs.runs-on }}
@@ -144,7 +141,7 @@ jobs:
   #       shell: bash
 
   duplicate-check:
-    if: inputs.runs-on == 'ubuntu-latest' && contains(inputs.jobs, 'duplicate-check')
+    if: inputs.runs-on == 'ubuntu-latest'
     runs-on: ${{ inputs.runs-on }}
     steps:
       - uses: actions/checkout@v6
