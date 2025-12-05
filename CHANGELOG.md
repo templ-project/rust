@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.4 (2025-12-05)
+
+### Bug Fixes
+
+* introdces different artifacts and cleanup workflow ([62afee6](https://github.com/templ-project/rust/commit/62afee6d7cedd2b3d5b2e8b8fd6ec550639686d0))
+
 ## 1.0.3 (2025-12-04)
 
 ### Bug Fixes
