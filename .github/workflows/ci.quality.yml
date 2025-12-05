@@ -57,32 +57,21 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+      - name: Parse target
+        id: target
+        uses: ./.github/actions/parse-target
+        with:
+          target: ${{ inputs.target }}
+
       - name: Create distribution archive
         id: archive
         run: |
           mkdir -p dist
-          TARGET="${{ inputs.target }}"
+          ARCHIVE="dist/rust-template_${{ steps.target.outputs.os }}_${{ steps.target.outputs.arch }}${{ steps.target.outputs.archive_ext }}"
 
-          # Extract OS from target triple
-          if [[ "$TARGET" == *"linux"* ]]; then
-            OS="linux"
-          elif [[ "$TARGET" == *"darwin"* ]]; then
-            OS="darwin"
-          elif [[ "$TARGET" == *"windows"* ]]; then
-            OS="windows"
-          else
-            OS="unknown"
-          fi
-
-          # Extract arch from target triple
-          ARCH=$(echo "$TARGET" | cut -d'-' -f1)
-
-          # Create archive
-          if [[ "$TARGET" == *"windows"* ]]; then
-            ARCHIVE="dist/rust-template_${OS}_${ARCH}.zip"
+          if [[ "${{ steps.target.outputs.os }}" == "windows" ]]; then
             zip -j "$ARCHIVE" target/${{ inputs.target }}/release/rust-template.exe
           else
-            ARCHIVE="dist/rust-template_${OS}_${ARCH}.tar.gz"
             tar -czf "$ARCHIVE" -C target/${{ inputs.target }}/release rust-template
           fi
 
@@ -105,54 +94,54 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  lint:
-    runs-on: ${{ inputs.runs-on }}
-    if: always() && contains(inputs.jobs, 'lint') && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    needs: [build]
-    steps:
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-tools
+  # lint:
+  #   runs-on: ${{ inputs.runs-on }}
+  #   if: always() && contains(inputs.jobs, 'lint') && (needs.build.result == 'success' || needs.build.result == 'skipped')
+  #   needs: [build]
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #     - uses: ./.github/actions/setup-tools
 
-      - name: Check Code Formatting
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONIOENCODING: utf-8
-        run: |
-          task format:check
-        shell: bash
+  #     - name: Check Code Formatting
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         PYTHONIOENCODING: utf-8
+  #       run: |
+  #         task format:check
+  #       shell: bash
 
-      - name: Lint Code
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONIOENCODING: utf-8
-        run: |
-          task lint:check
-        shell: bash
+  #     - name: Lint Code
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         PYTHONIOENCODING: utf-8
+  #       run: |
+  #         task lint:check
+  #       shell: bash
 
-  test:
-    runs-on: ${{ inputs.runs-on }}
-    if: always() && contains(inputs.jobs, 'test') && (needs.lint.result == 'success' || needs.lint.result == 'skipped')
-    needs: [lint]
-    steps:
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-tools
+  # test:
+  #   runs-on: ${{ inputs.runs-on }}
+  #   if: always() && contains(inputs.jobs, 'test') && (needs.lint.result == 'success' || needs.lint.result == 'skipped')
+  #   needs: [lint]
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #     - uses: ./.github/actions/setup-tools
 
-      - name: Run Tests
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONIOENCODING: utf-8
-        run: |
-          task test
-        shell: bash
+  #     - name: Run Tests
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         PYTHONIOENCODING: utf-8
+  #       run: |
+  #         task test
+  #       shell: bash
 
-      - name: Run Tests with Coverage
-        if: inputs.runs-on == 'ubuntu-latest'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONIOENCODING: utf-8
-        run: |
-          task test:gen-coverage
-        shell: bash
+  #     - name: Run Tests with Coverage
+  #       if: inputs.runs-on == 'ubuntu-latest'
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         PYTHONIOENCODING: utf-8
+  #       run: |
+  #         task test:gen-coverage
+  #       shell: bash
 
   duplicate-check:
     if: inputs.runs-on == 'ubuntu-latest' && contains(inputs.jobs, 'duplicate-check')

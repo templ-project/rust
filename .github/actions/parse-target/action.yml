@@ -1,0 +1,63 @@
+name: Parse Rust Target
+description: Extract OS and architecture from Rust target triple
+
+inputs:
+  target:
+    description: 'Rust target triple (e.g., x86_64-unknown-linux-gnu)'
+    required: true
+
+outputs:
+  os:
+    description: 'Operating system (linux, darwin, windows)'
+    value: ${{ steps.parse.outputs.os }}
+  arch:
+    description: 'Architecture (x86_64, aarch64)'
+    value: ${{ steps.parse.outputs.arch }}
+  extension:
+    description: 'Binary extension (empty for unix, .exe for windows)'
+    value: ${{ steps.parse.outputs.extension }}
+  archive_ext:
+    description: 'Archive extension (.tar.gz for unix, .zip for windows)'
+    value: ${{ steps.parse.outputs.archive_ext }}
+
+runs:
+  using: composite
+  steps:
+    - name: Parse target triple
+      id: parse
+      shell: bash
+      run: |
+        TARGET="${{ inputs.target }}"
+
+        # Extract architecture (first segment)
+        ARCH=$(echo "$TARGET" | cut -d'-' -f1)
+        echo "arch=$ARCH" >> $GITHUB_OUTPUT
+
+        # Extract OS
+        if [[ "$TARGET" == *"linux"* ]]; then
+          OS="linux"
+          EXT=""
+          ARCHIVE_EXT=".tar.gz"
+        elif [[ "$TARGET" == *"darwin"* ]]; then
+          OS="darwin"
+          EXT=""
+          ARCHIVE_EXT=".tar.gz"
+        elif [[ "$TARGET" == *"windows"* ]]; then
+          OS="windows"
+          EXT=".exe"
+          ARCHIVE_EXT=".zip"
+        else
+          OS="unknown"
+          EXT=""
+          ARCHIVE_EXT=".tar.gz"
+        fi
+
+        echo "os=$OS" >> $GITHUB_OUTPUT
+        echo "extension=$EXT" >> $GITHUB_OUTPUT
+        echo "archive_ext=$ARCHIVE_EXT" >> $GITHUB_OUTPUT
+
+        echo "Parsed target: $TARGET"
+        echo "  OS: $OS"
+        echo "  Arch: $ARCH"
+        echo "  Extension: $EXT"
+        echo "  Archive: $ARCHIVE_EXT"

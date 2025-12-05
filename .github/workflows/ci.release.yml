@@ -126,32 +126,25 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Parse target
+        id: target
+        uses: ./.github/actions/parse-target
+        with:
+          target: ${{ inputs.target }}
+
       - name: Download assets from draft release
         id: download-draft
         if: steps.find-draft.outputs.found == 'true'
         run: |
           mkdir -p release-assets
           DRAFT_TAG="${{ steps.find-draft.outputs.draft_tag }}"
-          TARGET="${{ inputs.target }}"
+          PATTERN="rust-template_${{ steps.target.outputs.os }}_${{ steps.target.outputs.arch }}.*"
 
-          # Extract OS and arch for filename matching
-          ARCH=$(echo "$TARGET" | cut -d'-' -f1)
-          if [[ "$TARGET" == *"linux"* ]]; then
-            OS="linux"
-          elif [[ "$TARGET" == *"darwin"* ]]; then
-            OS="darwin"
-          elif [[ "$TARGET" == *"windows"* ]]; then
-            OS="windows"
-          else
-            OS="unknown"
-          fi
+          echo "Looking for: $PATTERN"
 
-          echo "Looking for: rust-template_${OS}_${ARCH}.*"
-
-          # Download matching asset from draft
           gh release download "$DRAFT_TAG" \
             --dir release-assets \
-            --pattern "rust-template_${OS}_${ARCH}.*"
+            --pattern "$PATTERN"
 
           echo "Downloaded assets:"
           ls -la release-assets/
