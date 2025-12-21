@@ -63,7 +63,7 @@ jobs:
         shell: bash
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: build-${{ inputs.target }}
           path: dist/*
