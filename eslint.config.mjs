@@ -3,15 +3,16 @@ import templEslintConfig from '@templ-project/eslint';
 export default [
   {
     ignores: [
+      '**/*.config.cjs',
+      '**/*.config.js',
+      '**/*.config.mjs',
+      '*.md',
       '.eslintignore',
       '.gitignore',
       '.jscpd/**',
       '.prettierignore',
       '.venv/**',
       '_uvx_install/**',
-      '**/*.config.cjs',
-      '**/*.config.js',
-      '**/*.config.mjs',
       'coverage/**',
       'dist/**',
       'docs-html/**',

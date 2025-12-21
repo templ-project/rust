@@ -33,19 +33,19 @@ Examples:
 
   # Show help
   uvx --from git+https://github.com/templ-project/rust.git bootstrap --help
-        """
+        """,
     )
 
     parser.add_argument(
         "path",
         nargs="?",
         default=".",
-        help="Target directory (default: current directory)"
+        help="Target directory (default: current directory)",
     )
 
     parser.add_argument(
         "--project-name",
-        help="Project name (default: extracted from target directory name)"
+        help="Project name (default: extracted from target directory name)",
     )
 
     return parser.parse_args()
@@ -72,13 +72,15 @@ def extract_project_name(target_path):
 
     # Convert to a valid Rust package name
     # Replace spaces and periods with hyphens, make lowercase
-    project_name = dir_name.replace(" ", "-").replace("_", "-").replace(".", "-").lower()
+    project_name = (
+        dir_name.replace(" ", "-").replace("_", "-").replace(".", "-").lower()
+    )
 
     # Remove any non-alphanumeric characters except hyphens
-    project_name = re.sub(r'[^a-z0-9-]', '', project_name)
+    project_name = re.sub(r"[^a-z0-9-]", "", project_name)
 
     # Ensure it doesn't start or end with hyphens
-    project_name = project_name.strip('-')
+    project_name = project_name.strip("-")
 
     # Rust package names cannot start with numbers
     if project_name and project_name[0].isdigit():
@@ -96,49 +98,45 @@ def update_cargo_metadata(cargo_path, project_name):
     if not cargo_path.exists():
         return
 
-    with open(cargo_path, 'r') as f:
+    with open(cargo_path, "r") as f:
         content = f.read()
 
     # Convert project-name to project_name for lib name (Rust convention)
     lib_name = project_name.replace("-", "_")
 
     # Update package metadata
-    content = re.sub(
-        r'name = "rust-template"',
-        f'name = "{project_name}"',
-        content
-    )
+    content = re.sub(r'name = "rust-template"', f'name = "{project_name}"', content)
     content = re.sub(
         r'description = "A Rust Bootstrap/Template project using modern tools and best practices"',
         f'description = "{project_name.replace("-", " ").title()} project"',
-        content
+        content,
     )
     content = re.sub(
         r'homepage = "https://github.com/templ-project/rust"',
         f'homepage = "https://github.com/your-org/{project_name}"',
-        content
+        content,
     )
     content = re.sub(
         r'repository = "https://github.com/templ-project/rust"',
         f'repository = "https://github.com/your-org/{project_name}"',
-        content
+        content,
     )
 
     # Update binary name
     content = re.sub(
         r'name = "rust-template"\npath = "src/main.rs"',
         f'name = "{project_name}"\npath = "src/main.rs"',
-        content
+        content,
     )
 
     # Update library name
     content = re.sub(
         r'name = "rust_template"\npath = "src/lib.rs"',
         f'name = "{lib_name}"\npath = "src/lib.rs"',
-        content
+        content,
     )
 
-    with open(cargo_path, 'w') as f:
+    with open(cargo_path, "w") as f:
         f.write(content)
 
     print("  ✓ Updated Cargo.toml metadata")
@@ -149,18 +147,17 @@ def update_taskfile_metadata(taskfile_path, project_name):
     if not taskfile_path.exists():
         return
 
-    with open(taskfile_path, 'r') as f:
+    with open(taskfile_path, "r") as f:
         content = f.read()
 
     # Update RUST_PROJECT_NAME variable default value
     content = re.sub(
         r'RUST_PROJECT_NAME: \'{{default .RUST_PROJECT_NAME "rust-template"}}\'',
-        f'RUST_PROJECT_NAME: \'{{{{default .RUST_PROJECT_NAME "{project_name}"}}}}\''
-        ,
-        content
+        f"RUST_PROJECT_NAME: '{{{{default .RUST_PROJECT_NAME \"{project_name}\"}}}}'",
+        content,
     )
 
-    with open(taskfile_path, 'w') as f:
+    with open(taskfile_path, "w") as f:
         f.write(content)
 
     print("  ✓ Updated Taskfile.yml metadata")
@@ -171,7 +168,7 @@ def update_readme_metadata(readme_path, project_name):
     if not readme_path.exists():
         return
 
-    with open(readme_path, 'r') as f:
+    with open(readme_path, "r") as f:
         content = f.read()
 
     # Create formatted project title
@@ -179,36 +176,36 @@ def update_readme_metadata(readme_path, project_name):
 
     # Update title and description
     content = re.sub(
-        r'# Rust Bootstrap Template# rust\n\nRust Template',
-        f'# {project_title}',
-        content
+        r"# Rust Bootstrap Template# rust\n\nRust Template",
+        f"# {project_title}",
+        content,
     )
     content = re.sub(
-        r'> A modern Rust project template with testing, linting, formatting, and quality tools built-in\.',
-        f'> {project_title} - A Rust project',
-        content
+        r"> A modern Rust project template with testing, linting, formatting, and quality tools built-in\.",
+        f"> {project_title} - A Rust project",
+        content,
     )
 
     # Update repository references
     content = re.sub(
-        r'https://github\.com/templ-project/rust',
-        f'https://github.com/your-org/{project_name}',
-        content
+        r"https://github\.com/templ-project/rust",
+        f"https://github.com/your-org/{project_name}",
+        content,
     )
     content = re.sub(
-        r'git clone https://github\.com/templ-project/rust\.git my-project',
-        f'git clone https://github.com/your-org/{project_name}.git {project_name}',
-        content
+        r"git clone https://github\.com/templ-project/rust\.git my-project",
+        f"git clone https://github.com/your-org/{project_name}.git {project_name}",
+        content,
     )
 
     # Update bootstrap examples
     content = re.sub(
-        r'uvx --from git\+https://github\.com/templ-project/rust\.git bootstrap \./my-rust-project',
-        f'uvx --from git+https://your-repo-url.git bootstrap ./{project_name}',
-        content
+        r"uvx --from git\+https://github\.com/templ-project/rust\.git bootstrap \./my-rust-project",
+        f"uvx --from git+https://your-repo-url.git bootstrap ./{project_name}",
+        content,
     )
 
-    with open(readme_path, 'w') as f:
+    with open(readme_path, "w") as f:
         f.write(content)
 
     print("  ✓ Updated README.md metadata")
@@ -219,22 +216,22 @@ def update_contributing_metadata(contributing_path, project_name):
     if not contributing_path.exists():
         return
 
-    with open(contributing_path, 'r') as f:
+    with open(contributing_path, "r") as f:
         content = f.read()
 
     # Update repository references
     content = re.sub(
-        r'https://github\.com/templ-project/rust',
-        f'https://github.com/your-org/{project_name}',
-        content
+        r"https://github\.com/templ-project/rust",
+        f"https://github.com/your-org/{project_name}",
+        content,
     )
     content = re.sub(
-        r'git clone https://github\.com/templ-project/rust\.git',
-        f'git clone https://github.com/your-org/{project_name}.git',
-        content
+        r"git clone https://github\.com/templ-project/rust\.git",
+        f"git clone https://github.com/your-org/{project_name}.git",
+        content,
     )
 
-    with open(contributing_path, 'w') as f:
+    with open(contributing_path, "w") as f:
         f.write(content)
 
     print("  ✓ Updated CONTRIBUTING.md metadata")
@@ -257,11 +254,18 @@ def clone_template(target_path):
     try:
         # Clone the repository
         print("  Cloning from https://github.com/templ-project/rust...")
-        subprocess.run([
-            "git", "clone", "--depth", "1",
-            "https://github.com/templ-project/rust.git",
-            str(target_path)
-        ], check=True, capture_output=True)
+        subprocess.run(
+            [
+                "git",
+                "clone",
+                "--depth",
+                "1",
+                "https://github.com/templ-project/rust.git",
+                str(target_path),
+            ],
+            check=True,
+            capture_output=True,
+        )
         print(f"  ✓ Template cloned to {target_path}")
     except subprocess.CalledProcessError as e:
         print("❌ Error: Failed to clone repository")
@@ -323,6 +327,14 @@ def bootstrap(target_path, project_name=None):
     # Remove mise.lock file
     mise_lock = target_path / ".mise.lock"
     remove_if_exists(mise_lock)
+
+    # Remove .cwai directory
+    cwai_dir = target_path / ".cwai"
+    remove_if_exists(cwai_dir)
+
+    # Remove .github/prompts directory
+    github_prompts_dir = target_path / ".github" / "prompts"
+    remove_if_exists(github_prompts_dir)
 
     print(f"\n📝 Updating project metadata for '{project_name}'...\n")
 

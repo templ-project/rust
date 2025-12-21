@@ -3,16 +3,15 @@ version: '3'
 vars:
   # mise dependent
   __TF_MISE_E: 'mise trust; mise exec --'
-  __TF_MISE_E_PWSH: 'mise trust; mise exec -- pwsh -ExecutionPolicy Bypass -Command'
-  __TF_MISE_E_PWSH_FILE: 'mise trust; mise exec -- pwsh -ExecutionPolicy Bypass -File'
+  __TF_MISE_E_PWSH: 'mise trust; mise exec -- pwsh -NoProfile -ExecutionPolicy Bypass -Command'
+  __TF_MISE_E_PWSH_FILE: 'mise trust; mise exec -- pwsh -NoProfile -ExecutionPolicy Bypass -File'
   __TF_MISE_E_UV_RUN: 'mise trust; mise exec -- uv run'
   # os dependent
-
+  __TF_HEADER_LINE: '=============================================================='
+  __TF_SEP: ' '
   __TF_VAR_PREFIX:
     sh: |
       echo "{{if eq OS "windows"}}\${{else}}{{end}}"
-  __TF_HEADER_LINE: '=============================================================='
-  __TF_SEP: ' '
 
   # rust dependent
   RUST_PROJECT_NAME: '{{default .RUST_PROJECT_NAME "rust-template"}}'
