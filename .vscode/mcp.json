@@ -1,12 +1,19 @@
 {
   "servers": {
     "github": {
-      "url": "https://api.githubcopilot.com/mcp/",
-      "type": "http"
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/"
+    },
+    "py-language-server": {
+      "args": ["--workspace", "${workspaceFolder}", "--lsp", "pyright-langserver", "--", "--stdio"],
+      "command": "${userHome}/go/bin/mcp-language-server",
+      "env": {
+        "LOG_LEVEL": "DEBUG"
+      }
     },
     "rust-language-server": {
-      "command": "${userHome}/go/bin/mcp-language-server",
       "args": ["--workspace", "${workspaceFolder}", "--lsp", "rust-analyzer"],
+      "command": "${userHome}/go/bin/mcp-language-server",
       "env": {
         "LOG_LEVEL": "DEBUG"
       }
