@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 (2025-12-21)
+
+### Features
+
+* sync configuration files with generic template ([6a8da00](https://github.com/templ-project/rust/commit/6a8da00a982029ce043433834ce9b8114801676d))
+
 ## 1.0.7 (2025-12-05)
 
 ### Bug Fixes
