@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1 (2025-12-22)
+
+### Bug Fixes
+
+* add PowerShell fallback for zip on Windows runners ([915377e](https://github.com/templ-project/rust/commit/915377e2df00b7209acad8d3a04fa32b6958c789))
+
 ## 1.1.0 (2025-12-21)
 
 ### Features
