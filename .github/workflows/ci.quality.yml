@@ -53,7 +53,8 @@ jobs:
           ARCHIVE="dist/rust-template_${{ steps.target.outputs.os }}_${{ steps.target.outputs.arch }}${{ steps.target.outputs.archive_ext }}"
 
           if [[ "${{ steps.target.outputs.os }}" == "windows" ]]; then
-            zip -j "$ARCHIVE" target/${{ inputs.target }}/release/rust-template.exe
+            zip -j "$ARCHIVE" target/${{ inputs.target }}/release/rust-template.exe || \
+              mise exec -- pwsh -Command "Compress-Archive -Path 'target/${{ inputs.target }}/release/rust-template.exe' -DestinationPath '$ARCHIVE'"
           else
             tar -czf "$ARCHIVE" -C target/${{ inputs.target }}/release rust-template
           fi
