@@ -63,7 +63,7 @@ jobs:
         shell: bash
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: build-${{ inputs.target }}
           path: dist/*
@@ -124,7 +124,7 @@ jobs:
     runs-on: ${{ inputs.runs-on }}
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v6
 
       - name: Run duplicate check
         run: |
