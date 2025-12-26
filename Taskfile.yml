@@ -80,8 +80,8 @@ tasks:
         task build                           # Build release for current platform
         task build RUST_BUILD_TYPE=debug     # Build debug version
     vars:
-      # Convert Task's ARCH to Rust arch naming (arm64 -> aarch64)
-      RUST_ARCH: '{{if eq ARCH "arm64"}}aarch64{{else}}{{ARCH}}{{end}}'
+      # Convert Task's ARCH to Rust arch naming (arm64 -> aarch64, amd64 -> x86_64)
+      RUST_ARCH: '{{if eq ARCH "arm64"}}aarch64{{else if eq ARCH "amd64"}}x86_64{{else}}{{ARCH}}{{end}}'
       # Derive target triple for current platform
       RUST_TARGET_TRIPLE: '{{if eq OS "darwin"}}{{.RUST_ARCH}}-apple-darwin{{else if eq OS "windows"}}{{.RUST_ARCH}}-pc-windows-msvc{{else}}{{.RUST_ARCH}}-unknown-linux-gnu{{end}}'
 
