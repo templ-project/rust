@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 (2025-12-26)
+
+### Features
+
+* implement multi-architecture build system with Taskfile ([d44ce62](https://github.com/templ-project/rust/commit/d44ce62928ccf390c36d9f38d05aecbe070ed3ff))
+* implement multi-architecture build system with Taskfile ([96dcb3f](https://github.com/templ-project/rust/commit/96dcb3f1d4181a488def5483e907f7c94ad2b730))
+
 ## 1.1.1 (2025-12-22)
 
 ### Bug Fixes
