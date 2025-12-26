@@ -16,9 +16,13 @@ vars:
   # rust dependent
   RUST_PROJECT_NAME: '{{default .RUST_PROJECT_NAME "rust-template"}}'
   RUST_BUILD_TYPE: '{{default .RUST_BUILD_TYPE "release"}}'
-  RUST_BUILD_ARCH:
-    sh: 'echo {{if eq OS "darwin"}}aarch64{{else}}x86_64{{end}}'
-  RUST_BUILD_TARGET: '{{default .RUST_BUILD_TARGET ""}}' # Full target triple (e.g., x86_64-unknown-linux-gnu)
+
+  # Build targets - loaded from .build-targets.yml
+  # Each target has: os, arch, target (Rust target triple)
+  RUST_BUILD_TARGETS_RAW:
+    sh: cat .build-targets.yml
+  RUST_BUILD_TARGETS:
+    ref: '(fromYaml .RUST_BUILD_TARGETS_RAW).targets'
 
 tasks:
   # ==========================================================================
@@ -37,52 +41,184 @@ tasks:
               }}else { Get-ChildItem "Env:" | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" } }'
         platforms: [windows]
     desc: 'Print current build environment variables'
+    summary: |
+      Print current build environment variables
+
+      Displays all environment variables available during the build process,
+      sorted alphabetically. Useful for debugging build issues and verifying
+      tool configurations.
+
+      Example:
+        task print:env
 
   # ==========================================================================
   # Build Tasks
   # ==========================================================================
 
   build:
-    desc: 'Build project'
     cmds:
-      - cmd: |
-          echo "{{.__TF_HEADER_LINE}}"
-          echo "Building {{.RUST_PROJECT_NAME}} for {{OS}}/{{ARCH}} in {{.RUST_BUILD_TYPE}} mode"
-          echo "{{.__TF_HEADER_LINE}}"
-      - task: print:env
-      - cmd: |
-          {{if eq .RUST_BUILD_TYPE "release"}}
-          {{if ne .RUST_BUILD_TARGET ""}}
-          {{.__TF_MISE_E}} cargo build --release --target {{.RUST_BUILD_TARGET}}
-          {{else if eq OS "windows"}}
-          {{.__TF_MISE_E}} cargo build --release --target {{.RUST_BUILD_ARCH}}-pc-windows-msvc
-          {{else if eq OS "darwin"}}
-          {{.__TF_MISE_E}} cargo build --release --target {{.RUST_BUILD_ARCH}}-apple-darwin
-          {{else}}
-          {{.__TF_MISE_E}} cargo build --release --target {{.RUST_BUILD_ARCH}}-unknown-linux-gnu
-          {{end}}
-          {{else}}
-          {{.__TF_MISE_E}} cargo build
-          {{end}}
+      - task: build:target
+        vars:
+          TARGET_ARCH: '{{.RUST_ARCH}}'
+          TARGET_OS: '{{OS}}'
+          TARGET_TRIPLE: '{{.RUST_TARGET_TRIPLE}}'
+    desc: 'Build for current platform (output: build/<name>_<os>_<arch>)'
     sources:
       - src/**/*.rs
       - tests/**/*.rs
       - Cargo.toml
+    summary: |
+      Build the application for the current platform
+
+      Compiles the Rust application for the current OS and architecture.
+      Output binary is placed in build/<project>_<os>_<arch>[.exe].
+
+      Variables:
+        RUST_BUILD_TYPE: Build mode - 'release' (default, optimized) or 'debug'
+
+      Examples:
+        task build                           # Build release for current platform
+        task build RUST_BUILD_TYPE=debug     # Build debug version
+    vars:
+      # Convert Task's ARCH to Rust arch naming (arm64 -> aarch64)
+      RUST_ARCH: '{{if eq ARCH "arm64"}}aarch64{{else}}{{ARCH}}{{end}}'
+      # Derive target triple for current platform
+      RUST_TARGET_TRIPLE: '{{if eq OS "darwin"}}{{.RUST_ARCH}}-apple-darwin{{else if eq OS "windows"}}{{.RUST_ARCH}}-pc-windows-msvc{{else}}{{.RUST_ARCH}}-unknown-linux-gnu{{end}}'
+
+  build:all:
+    cmds:
+      - for:
+          var: RUST_BUILD_TARGETS
+        task: build:target
+        vars:
+          TARGET_ARCH: '{{.ITEM.arch}}'
+          TARGET_OS: '{{.ITEM.os}}'
+          TARGET_TRIPLE: '{{.ITEM.target}}'
+    desc: 'Build all architecture targets for current OS'
+    summary: |
+      Build all architecture targets for the current OS
+
+      Iterates through targets defined in .build-targets.yml and builds
+      all architectures that match the current operating system.
+      Non-matching OS targets are automatically skipped.
+
+      Output binaries are placed in build/<project>_<os>_<arch>[.exe].
+
+      Examples:
+        task build:all                       # Build all archs for current OS
+        task build:all RUST_BUILD_TYPE=debug # Build all archs in debug mode
+
+      On macOS, this builds: darwin/aarch64, darwin/x86_64
+      On Linux, this builds: linux/x86_64
+      On Windows, this builds: windows/x86_64
+
+  build:dist:
+    cmds:
+      - cmd: .scripts/build-dist.sh "{{.RUST_PROJECT_NAME}}"
+        platforms: [linux, darwin]
+      - cmd: '{{.__TF_MISE_E_PWSH_FILE}} .scripts/build-dist.ps1 -ProjectName "{{.RUST_PROJECT_NAME}}"'
+        platforms: [windows]
+    deps:
+      - build:all
+    desc: 'Create distribution archives for all builds in build/'
+    sources:
+      - build/*
+    summary: |
+      Create distribution archives for all builds
+
+      Creates compressed archives for all binaries in the build/ directory.
+      Unix binaries are packaged as .tar.gz, Windows binaries as .zip.
+      Output archives are placed in dist/.
+
+      This task automatically runs build:all first to ensure binaries exist.
+
+      Examples:
+        task build:dist                      # Build all and create archives
+
+      Output:
+        dist/rust-template_darwin_x86_64.tar.gz
+        dist/rust-template_darwin_aarch64.tar.gz
+        dist/rust-template_windows_x86_64.zip (if built on Windows)
+
+  build:target:
+    cmds:
+      - cmd: |
+          echo "{{.__TF_HEADER_LINE}}"
+          echo "Building {{.RUST_PROJECT_NAME}} for {{.TARGET_OS}}/{{.TARGET_ARCH}} ({{.TARGET_TRIPLE}}) in {{.RUST_BUILD_TYPE}} mode"
+          echo "{{.__TF_HEADER_LINE}}"
+      - cmd: |
+          {{.__TF_MISE_E}} rustup target add {{.TARGET_TRIPLE}} 2>/dev/null || true
+      - cmd: |
+          mkdir -p build
+          {{if eq .RUST_BUILD_TYPE "release"}}
+          {{.__TF_MISE_E}} cargo build --release --target {{.TARGET_TRIPLE}}
+          {{else}}
+          {{.__TF_MISE_E}} cargo build --target {{.TARGET_TRIPLE}}
+          {{end}}
+      - cmd: |
+          cp target/{{.TARGET_TRIPLE}}/{{.RUST_BUILD_TYPE}}/{{.RUST_PROJECT_NAME}}{{.EXE_EXT}} build/{{.OUTPUT_NAME}}
+          echo "Built: build/{{.OUTPUT_NAME}}"
+    desc: 'Build for a specific OS/ARCH target'
+    requires:
+      vars: [TARGET_OS, TARGET_ARCH]
+    status:
+      # Skip if TARGET_OS doesn't match current OS (returns 0 = up-to-date = skip)
+      - '[ "{{.TARGET_OS}}" != "{{OS}}" ]'
+    summary: |
+      Build for a specific OS/ARCH target
+
+      Compiles the application for the specified operating system and
+      architecture combination. Automatically skips if TARGET_OS doesn't
+      match the current OS (cross-OS compilation is not supported).
+
+      Required Variables:
+        TARGET_OS:   Target operating system (linux, darwin, windows)
+        TARGET_ARCH: Target architecture (x86_64, aarch64)
+
+      Optional Variables:
+        TARGET_TRIPLE:   Rust target triple (e.g., x86_64-unknown-linux-gnu)
+        RUST_BUILD_TYPE: Build mode - 'release' (default) or 'debug'
+
+      Examples:
+        task build:target TARGET_OS=linux TARGET_ARCH=x86_64 TARGET_TRIPLE=x86_64-unknown-linux-gnu
+        task build:target TARGET_OS=darwin TARGET_ARCH=aarch64 TARGET_TRIPLE=aarch64-apple-darwin
+
+      Note: This task is typically called by build:all, not directly.
+    vars:
+      EXE_EXT: '{{if eq .TARGET_OS "windows"}}.exe{{end}}'
+      OUTPUT_NAME: '{{.RUST_PROJECT_NAME}}_{{.TARGET_OS}}_{{.TARGET_ARCH}}{{.EXE_EXT}}'
+      # Default target triple derivation based on OS
+      TARGET_TRIPLE: '{{if .TARGET_TRIPLE}}{{.TARGET_TRIPLE}}{{else if eq .TARGET_OS "darwin"}}{{.TARGET_ARCH}}-apple-darwin{{else if eq .TARGET_OS "windows"}}{{.TARGET_ARCH}}-pc-windows-msvc{{else}}{{.TARGET_ARCH}}-unknown-linux-gnu{{end}}'
 
   # ============================================================================
   # Clean Tasks
   # ============================================================================
 
   clean:
-    desc: 'Clean all build artifacts'
     cmds:
       - |
         rm -rf \
             .coverage \
             .jscpd/html \
             .task \
+            build \
             coverage \
+            dist \
             target
+    desc: 'Clean all build artifacts'
+    summary: |
+      Clean all build artifacts
+
+      Removes all generated files and directories including:
+        - build/        - Compiled binaries
+        - dist/         - Distribution archives
+        - target/       - Rust build artifacts
+        - .task/        - Task cache
+        - coverage/     - Test coverage reports
+        - .jscpd/html   - Duplicate check reports
+
+      Examples:
+        task clean                           # Remove all artifacts
 
   # ============================================================================
   # Code Quality Tasks
