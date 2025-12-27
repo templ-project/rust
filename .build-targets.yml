@@ -16,6 +16,9 @@ targets:
   - os: linux
     arch: x86_64
     target: x86_64-unknown-linux-gnu
+  - os: linux
+    arch: i686
+    target: i686-unknown-linux-gnu
 
   # macOS targets
   - os: darwin
@@ -29,3 +32,6 @@ targets:
   - os: windows
     arch: x86_64
     target: x86_64-pc-windows-msvc
+  - os: windows
+    arch: i686
+    target: i686-win7-windows-msvc
