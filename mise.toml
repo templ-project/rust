@@ -1,4 +1,5 @@
 [settings]
+always_keep_download = true
 experimental = true
 lockfile = true
 

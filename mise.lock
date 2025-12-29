@@ -1,25 +1,14 @@
 [[tools."github:PowerShell/PowerShell"]]
 version = "7.5.4"
 backend = 'github:PowerShell/PowerShell[platforms={ linux-x64 = { asset_pattern = "powershell-*-linux-x64.tar.gz" }, macos-arm64 = { asset_pattern = "powershell-*-osx-arm64.tar.gz" }, windows-x64 = { asset_pattern = "PowerShell-*-win-x64.zip" } }]'
-"platforms.linux-arm64" = { checksum = "sha256:4b32d4cb86a43dfb83d5602d0294295bf22fafbf9e0785d1aaef81938cda92f8", url = "https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/powershell-7.5.4-linux-arm64.tar.gz", url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/305232364"}
-"platforms.linux-x64" = { checksum = "sha256:1fd7983fe56ca9e6233f126925edb24bf6b6b33e356b69996d925c4db94e2fef", url = "https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/powershell-7.5.4-linux-x64.tar.gz", url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/305232425"}
-"platforms.macos-arm64" = { checksum = "sha256:3aaadd7ca62f1e4dbe59145b6af24e926d61f8da8a4782bc535e500c184135f0", url = "https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/powershell-7.5.4-osx-arm64.tar.gz", url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/305232461"}
-"platforms.macos-x64" = { checksum = "sha256:cd16a04c1b99cdacbdc0337b0fd0da50dbf1a8b4e8437bcb4ca9118ef729211a", url = "https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/powershell-7.5.4-osx-x64.tar.gz", url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/305232543"}
-"platforms.windows-x64" = { checksum = "sha256:b40d192ae95ba6ccc4cc362ff4e1b18ca6fb5055bebbcd3920684e12701fa8f6", url = "https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/PowerShell-7.5.4-win-x64.zip", url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/305232969"}
 
 [[tools."github:koalaman/shellcheck"]]
 version = "0.11.0"
 backend = 'github:koalaman/shellcheck[platforms={ linux-x64 = { asset_pattern = "shellcheck-*.linux.x86_64.tar.xz" }, macos-arm64 = { asset_pattern = "shellcheck-*.darwin.aarch64.tar.xz" }, windows-x64 = { asset_pattern = "shellcheck-*.zip" } }]'
-"platforms.linux-arm64" = { checksum = "sha256:12b331c1d2db6b9eb13cfca64306b1b157a86eb69db83023e261eaa7e7c14588", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.aarch64.tar.xz", url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/279056934"}
-"platforms.linux-x64" = { checksum = "sha256:8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz", url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/279056942"}
-"platforms.macos-arm64" = { checksum = "sha256:56affdd8de5527894dca6dc3d7e0a99a873b0f004d7aabc30ae407d3f48b0a79", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.aarch64.tar.xz", url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/279056932"}
-"platforms.macos-x64" = { checksum = "sha256:3c89db4edcab7cf1c27bff178882e0f6f27f7afdf54e859fa041fca10febe4c6", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.x86_64.tar.xz", url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/279056930"}
-"platforms.windows-x64" = { checksum = "sha256:8a4e35ab0b331c85d73567b12f2a444df187f483e5079ceffa6bda1faa2e740e", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.zip", url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/279056944"}
 
 [[tools.node]]
 version = "22.21.1"
 backend = "core:node"
-"platforms.macos-arm64" = { checksum = "sha256:c170d6554fba83d41d25a76cdbad85487c077e51fa73519e41ac885aa429d8af", url = "https://nodejs.org/dist/v22.21.1/node-v22.21.1-darwin-arm64.tar.gz"}
 
 [[tools.python]]
 version = "3.11.14"
@@ -32,4 +21,8 @@ backend = "core:rust"
 [[tools.uv]]
 version = "0.9.18"
 backend = "aqua:astral-sh/uv[cargo:cargo-tarpaulin=latest,cargo:cargo-audit=latest,cargo:cargo-deny=latest]"
-"platforms.macos-arm64" = { checksum = "sha256:dc3bee4abbb3bac267a3985a23ea7617d19d41ff381dbaf560ba415ad65af68f", url = "https://github.com/astral-sh/uv/releases/download/0.9.18/uv-aarch64-apple-darwin.tar.gz"}
+
+[tools.uv.platforms.windows-x64]
+checksum = "sha256:28cbe5d30907a774bfe27a517a39b494ec6f7d3816bda8bbf6f9645490449182"
+size = 21509695
+url = "https://github.com/astral-sh/uv/releases/download/0.9.18/uv-x86_64-pc-windows-msvc.zip"
