@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1 (2025-12-30)
+
+### Bug Fixes
+
+* fixing setup tools action + fixing deps:sync:mise lock creator ([41abf1a](https://github.com/templ-project/rust/commit/41abf1a3b245fd6c12e2b4cbe86bc8508acd7467))
+
 ## 1.2.0 (2025-12-26)
 
 ### Features
