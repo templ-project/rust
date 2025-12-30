@@ -1,27 +1,34 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# ============================================================================
+# Rust Template - Taskfile
+# ============================================================================
+# This is the main Taskfile for the Rust template project.
+# Common tasks are imported from .taskfiles/ modules.
+# ============================================================================
 version: '3'
 
-vars:
-  # mise dependent
-  __TF_MISE_E: 'mise trust; mise exec --'
-  __TF_MISE_E_PWSH: 'mise trust; mise exec -- pwsh -NoProfile -ExecutionPolicy Bypass -Command'
-  __TF_MISE_E_PWSH_FILE: 'mise trust; mise exec -- pwsh -NoProfile -ExecutionPolicy Bypass -File'
-  __TF_MISE_E_UV_RUN: 'mise trust; mise exec -- uv run'
-  # os dependent
-  __TF_COMMAND_WRAPPER:
-    sh: |
-      echo '{{if eq OS "windows"}}powershell -ExecutionPolicy Bypass -Command{{else}}bash -c{{end}}'
-  __TF_HEADER_LINE: '=============================================================='
-  __TF_SEP: ' '
-  __TF_VAR_PREFIX:
-    sh: |
-      echo "{{if eq OS "windows"}}\${{else}}{{end}}"
+includes:
+  # ==========================================================================
+  # Shared Modules (sync from generic using: task sync:from:generic)
+  # ==========================================================================
+  common:
+    taskfile: .taskfiles/Taskfile.common.yml
+    internal: true
+  _deps:
+    taskfile: .taskfiles/Taskfile.deps.yml
+    internal: true
+  quality:
+    taskfile: .taskfiles/Taskfile.quality.yml
+    internal: true
+  sync:
+    taskfile: .taskfiles/Taskfile.sync.yml
 
-  # rust dependent
+vars:
+  # Rust project settings
   RUST_PROJECT_NAME: '{{default .RUST_PROJECT_NAME "rust-template"}}'
   RUST_BUILD_TYPE: '{{default .RUST_BUILD_TYPE "release"}}'
 
   # Build targets - loaded from .build-targets.yml
-  # Each target has: os, arch, target (Rust target triple)
   RUST_BUILD_TARGETS_RAW:
     sh: cat .build-targets.yml
   RUST_BUILD_TARGETS:
@@ -29,47 +36,11 @@ vars:
 
 tasks:
   # ==========================================================================
-  # Generic Tasks
-  # ==========================================================================
-
-  print:env:
-    cmds:
-      - cmd: |
-          {{.__TF_MISE_E}} env | sort
-        platforms: [darwin, linux]
-      - cmd: |
-          {{.__TF_MISE_E}} {{ .__TF_SEP
-            }}pwsh -Command '$BashPath=(Get-Command bash -ErrorAction SilentlyContinue).Path;{{ .__TF_SEP
-              }}if ($BashPath) { & $BashPath -c "env | sort" }{{ .__TF_SEP
-              }}else { Get-ChildItem "Env:" | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" } }'
-        platforms: [windows]
-    desc: 'Print current build environment variables'
-    summary: |
-      Print current build environment variables
-
-      Displays all environment variables available during the build process,
-      sorted alphabetically. Useful for debugging build issues and verifying
-      tool configurations.
-
-      Examples:
-        task print:env
-
-  # ==========================================================================
   # Build Tasks
   # ==========================================================================
 
   build:
-    cmds:
-      - task: build:target
-        vars:
-          TARGET_ARCH: '{{.RUST_ARCH}}'
-          TARGET_OS: '{{OS}}'
-          TARGET_TRIPLE: '{{.RUST_TARGET_TRIPLE}}'
     desc: 'Build for current platform (output: build/<name>_<os>_<arch>)'
-    sources:
-      - src/**/*.rs
-      - tests/**/*.rs
-      - Cargo.toml
     summary: |
       Build the application for the current platform
 
@@ -82,13 +53,33 @@ tasks:
       Examples:
         task build                           # Build release for current platform
         task build RUST_BUILD_TYPE=debug     # Build debug version
+    sources:
+      - src/**/*.rs
+      - tests/**/*.rs
+      - Cargo.toml
     vars:
       # Convert Task's ARCH to Rust arch naming (arm64 -> aarch64, amd64 -> x86_64)
       RUST_ARCH: '{{if eq ARCH "arm64"}}aarch64{{else if eq ARCH "amd64"}}x86_64{{else}}{{ARCH}}{{end}}'
       # Derive target triple for current platform
       RUST_TARGET_TRIPLE: '{{if eq OS "darwin"}}{{.RUST_ARCH}}-apple-darwin{{else if eq OS "windows"}}{{.RUST_ARCH}}-pc-windows-msvc{{else}}{{.RUST_ARCH}}-unknown-linux-gnu{{end}}'
+    cmds:
+      - task: build:target
+        vars:
+          TARGET_ARCH: '{{.RUST_ARCH}}'
+          TARGET_OS: '{{OS}}'
+          TARGET_TRIPLE: '{{.RUST_TARGET_TRIPLE}}'
 
   build:all:
+    desc: 'Build all architecture targets for current OS'
+    summary: |
+      Build all architecture targets for the current OS
+
+      Iterates through targets defined in .build-targets.yml and builds
+      all architectures that match the current operating system.
+
+      Examples:
+        task build:all                       # Build all archs for current OS
+        task build:all RUST_BUILD_TYPE=debug # Build all archs in debug mode
     cmds:
       - for:
           var: RUST_BUILD_TARGETS
@@ -97,53 +88,48 @@ tasks:
           TARGET_ARCH: '{{.ITEM.arch}}'
           TARGET_OS: '{{.ITEM.os}}'
           TARGET_TRIPLE: '{{.ITEM.target}}'
-    desc: 'Build all architecture targets for current OS'
-    summary: |
-      Build all architecture targets for the current OS
-
-      Iterates through targets defined in .build-targets.yml and builds
-      all architectures that match the current operating system.
-      Non-matching OS targets are automatically skipped.
-
-      Output binaries are placed in build/<project>_<os>_<arch>[.exe].
-
-      Examples:
-        task build:all                       # Build all archs for current OS
-        task build:all RUST_BUILD_TYPE=debug # Build all archs in debug mode
-
-      On macOS, this builds: darwin/aarch64, darwin/x86_64
-      On Linux, this builds: linux/x86_64
-      On Windows, this builds: windows/x86_64
 
   build:dist:
+    desc: 'Create distribution archives for all builds in build/'
+    summary: |
+      Create distribution archives for all builds
+
+      Creates compressed archives for all binaries in the build/ directory.
+
+      Examples:
+        task build:dist                      # Build all and create archives
+    deps:
+      - build:all
+    sources:
+      - build/*
     cmds:
       - cmd: .scripts/build-dist.sh "{{.RUST_PROJECT_NAME}}"
         platforms: [linux, darwin]
       - cmd: '{{.__TF_MISE_E_PWSH_FILE}} .scripts/build-dist.ps1 -ProjectName "{{.RUST_PROJECT_NAME}}"'
         platforms: [windows]
-    deps:
-      - build:all
-    desc: 'Create distribution archives for all builds in build/'
-    sources:
-      - build/*
-    summary: |
-      Create distribution archives for all builds
-
-      Creates compressed archives for all binaries in the build/ directory.
-      Unix binaries are packaged as .tar.gz, Windows binaries as .zip.
-      Output archives are placed in dist/.
-
-      This task automatically runs build:all first to ensure binaries exist.
-
-      Examples:
-        task build:dist                      # Build all and create archives
-
-      Output:
-        dist/rust-template_darwin_x86_64.tar.gz
-        dist/rust-template_darwin_aarch64.tar.gz
-        dist/rust-template_windows_x86_64.zip (if built on Windows)
 
   build:target:
+    desc: 'Build for a specific OS/ARCH target'
+    summary: |
+      Build for a specific OS/ARCH target
+
+      Compiles the application for the specified operating system and
+      architecture combination.
+
+      Required Variables:
+        TARGET_OS:   Target operating system (linux, darwin, windows)
+        TARGET_ARCH: Target architecture (x86_64, aarch64)
+
+      Examples:
+        task build:target TARGET_OS=linux TARGET_ARCH=x86_64
+    requires:
+      vars: [TARGET_OS, TARGET_ARCH]
+    status:
+      - '[ "{{.TARGET_OS}}" != "{{OS}}" ]'
+    vars:
+      EXE_EXT: '{{if eq .TARGET_OS "windows"}}.exe{{end}}'
+      OUTPUT_NAME: '{{.RUST_PROJECT_NAME}}_{{.TARGET_OS}}_{{.TARGET_ARCH}}{{.EXE_EXT}}'
+      TARGET_TRIPLE: '{{if .TARGET_TRIPLE}}{{.TARGET_TRIPLE}}{{else if eq .TARGET_OS "darwin"}}{{.TARGET_ARCH}}-apple-darwin{{else if eq .TARGET_OS "windows"}}{{.TARGET_ARCH}}-pc-windows-msvc{{else}}{{.TARGET_ARCH}}-unknown-linux-gnu{{end}}'
     cmds:
       - cmd: |
           echo "{{.__TF_HEADER_LINE}}"
@@ -161,43 +147,20 @@ tasks:
       - cmd: |
           cp target/{{.TARGET_TRIPLE}}/{{.RUST_BUILD_TYPE}}/{{.RUST_PROJECT_NAME}}{{.EXE_EXT}} build/{{.OUTPUT_NAME}}
           echo "Built: build/{{.OUTPUT_NAME}}"
-    desc: 'Build for a specific OS/ARCH target'
-    requires:
-      vars: [TARGET_OS, TARGET_ARCH]
-    status:
-      # Skip if TARGET_OS doesn't match current OS (returns 0 = up-to-date = skip)
-      - '[ "{{.TARGET_OS}}" != "{{OS}}" ]'
-    summary: |
-      Build for a specific OS/ARCH target
 
-      Compiles the application for the specified operating system and
-      architecture combination. Automatically skips if TARGET_OS doesn't
-      match the current OS (cross-OS compilation is not supported).
-
-      Required Variables:
-        TARGET_OS:   Target operating system (linux, darwin, windows)
-        TARGET_ARCH: Target architecture (x86_64, aarch64)
-
-      Optional Variables:
-        TARGET_TRIPLE:   Rust target triple (e.g., x86_64-unknown-linux-gnu)
-        RUST_BUILD_TYPE: Build mode - 'release' (default) or 'debug'
-
-      Examples:
-        task build:target TARGET_OS=linux TARGET_ARCH=x86_64 TARGET_TRIPLE=x86_64-unknown-linux-gnu
-        task build:target TARGET_OS=darwin TARGET_ARCH=aarch64 TARGET_TRIPLE=aarch64-apple-darwin
-
-      Note: This task is typically called by build:all, not directly.
-    vars:
-      EXE_EXT: '{{if eq .TARGET_OS "windows"}}.exe{{end}}'
-      OUTPUT_NAME: '{{.RUST_PROJECT_NAME}}_{{.TARGET_OS}}_{{.TARGET_ARCH}}{{.EXE_EXT}}'
-      # Default target triple derivation based on OS
-      TARGET_TRIPLE: '{{if .TARGET_TRIPLE}}{{.TARGET_TRIPLE}}{{else if eq .TARGET_OS "darwin"}}{{.TARGET_ARCH}}-apple-darwin{{else if eq .TARGET_OS "windows"}}{{.TARGET_ARCH}}-pc-windows-msvc{{else}}{{.TARGET_ARCH}}-unknown-linux-gnu{{end}}'
-
-  # ============================================================================
+  # ==========================================================================
   # Clean Tasks
-  # ============================================================================
+  # ==========================================================================
 
   clean:
+    desc: 'Clean all build artifacts'
+    summary: |
+      Clean all build artifacts
+
+      Removes all generated files and directories.
+
+      Examples:
+        task clean
     cmds:
       - |
         rm -rf \
@@ -208,232 +171,81 @@ tasks:
             coverage \
             dist \
             target
-    desc: 'Clean all build artifacts'
-    summary: |
-      Clean all build artifacts
 
-      Removes all generated files and directories including:
-        - build/        - Compiled binaries
-        - dist/         - Distribution archives
-        - target/       - Rust build artifacts
-        - .task/        - Task cache
-        - coverage/     - Test coverage reports
-        - .jscpd/html   - Duplicate check reports
-
-      Examples:
-        task clean                           # Remove all artifacts
-
-  # ============================================================================
-  # Code Quality Tasks
-  # ============================================================================
+  # ==========================================================================
+  # Code Quality Tasks (Project-specific overrides)
+  # ==========================================================================
 
   format:
-    cmds:
-      - task: format:cargo
-      - task: format:prettier
-      - cmd: echo "✅ Code format completed"
     desc: 'Format code and fix issues'
     summary: |
       Format all code in the project
 
-      Runs all formatters in sequence:
-        1. rustfmt for Rust files
-        2. Prettier for JSON, YAML, Markdown files
+      Runs rustfmt, Prettier, and Ruff formatters.
 
       Examples:
-        task format                          # Format all code
+        task format
+    cmds:
+      - task: format:cargo
+      - task: quality:format:prettier
+      - task: quality:format:ruff
+      - cmd: echo "Code format completed"
 
   format:cargo:
+    desc: 'Format Rust code using rustfmt'
     cmds:
       - cmd: |
           {{.__TF_MISE_E}} cargo fmt --all
-      - cmd: echo "✅ rust code format completed"
-    desc: 'Format Rust code using rustfmt'
-    summary: |
-      Format Rust code using rustfmt
-
-      Formats all Rust source files using rustfmt with the
-      project's rustfmt.toml configuration.
-
-      Examples:
-        task format:cargo                    # Format Rust files
-
-  format:prettier:
-    cmds:
-      - task: prettier
-        vars:
-          CLI_ARGS: '--write .'
-    desc: 'Format code using Prettier'
-    silent: true
-    summary: |
-      Format configuration files using Prettier
-
-      Formats JSON, YAML, Markdown, and other supported files
-      using Prettier with the project's configuration.
-
-      Examples:
-        task format:prettier                 # Format config files
-
-  prettier:
-    cmds:
-      - |
-        {{.__TF_MISE_E}} npx prettier {{.CLI_ARGS}}
-      - echo "- ✅ prettier format completed"
-    silent: true
-    sources:
-      - '**/*.{json,md,toml,yaml,yml}'
-    summary: |
-      Run Prettier with custom arguments
-
-      Internal task for running Prettier. Use format:prettier or
-      format:check:prettier instead.
-
-      Variables:
-        CLI_ARGS: Arguments to pass to Prettier
-
-  format:ruff:
-    aliases: [format:py, format:python]
-    cmds:
-      - task: ruff
-        vars:
-          CLI_ARGS: 'format .'
-      - echo "- ✅ ruff format completed"
-    desc: 'Format Python code using Ruff'
-    silent: true
-    summary: |
-      Format Python code using Ruff
-
-      Formats all Python files using Ruff formatter with the
-      project's pyproject.toml configuration.
-
-      Examples:
-        task format:ruff                     # Format Python files
-        task format:py                       # Alias
-        task format:python                   # Alias
-
-  ruff:
-    cmds:
-      - |
-        {{.__TF_MISE_E_UV_RUN}} ruff {{.CLI_ARGS}}
-    desc: 'Run Ruff'
-    silent: true
-    sources:
-      - '**/*.py'
-    summary: |
-      Run Ruff with custom arguments
-
-      Internal task for running Ruff. Use format:ruff or
-      lint:ruff instead.
-
-      Variables:
-        CLI_ARGS: Arguments to pass to Ruff
+      - cmd: echo "Rust code format completed"
 
   format:check:
+    desc: 'Check code formatting without fixing'
     cmds:
       - task: format:check:cargo
-      - task: format:check:prettier
-      - task: format:check:ruff
-      - cmd: echo "✅ Code format check completed"
-    desc: 'Check code formatting without fixing'
-    summary: |
-      Check code formatting without making changes
-
-      Verifies all code is properly formatted without modifying files.
-      Useful for CI pipelines to enforce formatting standards.
-
-      Examples:
-        task format:check                    # Check all formatting
+      - task: quality:format:check:prettier
+      - task: quality:format:check:ruff
+      - cmd: echo "Code format check completed"
 
   format:check:cargo:
+    desc: 'Check Rust code formatting using rustfmt'
     cmds:
       - cmd: |
           {{.__TF_MISE_E}} cargo fmt --all -- --check
-      - cmd: echo "✅ rust code format check completed"
-    desc: 'Check Rust code formatting using rustfmt'
-    summary: |
-      Check Rust code formatting without fixing
-
-      Verifies Rust files are properly formatted using rustfmt.
-      Exits with error if any files need formatting.
-
-      Examples:
-        task format:check:cargo              # Check Rust formatting
-
-  format:check:prettier:
-    cmds:
-      - task: prettier
-        vars:
-          CLI_ARGS: '--check .'
-      - echo "- ✅ prettier format check completed"
-    desc: 'Check code formatting using Prettier'
-    silent: true
-    summary: |
-      Check Prettier formatting without fixing
-
-      Verifies configuration files are properly formatted.
-      Exits with error if any files need formatting.
-
-      Examples:
-        task format:check:prettier           # Check Prettier formatting
-
-  format:check:ruff:
-    aliases: [format:check:py, format:check:python]
-    cmds:
-      - task: ruff
-        vars:
-          CLI_ARGS: 'format --check .'
-      - echo "- ✅ ruff format check completed"
-    desc: 'Check Python code formatting using Ruff'
-    silent: true
-    summary: |
-      Check Python code formatting without fixing
-
-      Verifies Python files are properly formatted using Ruff.
-      Exits with error if any files need formatting.
-
-      Examples:
-        task format:check:ruff               # Check Python formatting
-        task format:check:py                 # Alias
+      - cmd: echo "Rust code format check completed"
 
   lint:
-    cmds:
-      - task: lint:cargo
-      - task: lint:eslint
-      - task: lint:pylint
-      - task: lint:pwshlint
-      - task: lint:shlint
-      - cmd: echo "✅ Linting completed"
     desc: 'Run linter and fix issues'
     summary: |
       Run all linters and fix issues
 
-      Runs all linters in sequence with auto-fix enabled:
-        1. cargo clippy for Rust files
-        2. ESLint for config files
-        3. Pylint for Python files
-        4. PSScriptAnalyzer for PowerShell files
-        5. ShellCheck for shell scripts
+      Runs cargo clippy, ESLint, Pylint, PSScriptAnalyzer, and ShellCheck.
 
       Examples:
-        task lint                            # Lint and fix all code
+        task lint
+    cmds:
+      - task: lint:cargo
+      - task: quality:lint:eslint
+      - task: quality:lint:pylint
+      - task: quality:lint:pwshlint
+      - task: quality:lint:shlint
+      - cmd: echo "Linting completed"
 
   lint:cargo:
+    desc: 'Lint Rust code and fix issues'
+    silent: true
     cmds:
       - task: cargo-clippy
         vars:
           CLI_ARGS: '--fix --allow-dirty'
-      - echo "- ✅ cargo lint completed"
-    desc: 'Lint Rust code and fix issues'
-    summary: |
-      Lint Rust code using cargo clippy
-
-      Analyzes Rust code for bugs, style issues, and performance
-      problems with auto-fix enabled.
-
-      Examples:
-        task lint:cargo                      # Lint Rust with fixes
+      - echo "- Cargo lint completed"
 
   cargo-clippy:
+    desc: 'Run cargo clippy linter'
+    silent: true
+    sources:
+      - src/**/*.rs
+      - tests/**/*.rs
+      - Cargo.toml
     cmds:
       - cmd: |
           {{.__TF_MISE_E}} cargo clippy --all-features --verbose {{.CLI_ARGS}} -- \
@@ -442,328 +254,82 @@ tasks:
             -A clippy::module-name-repetitions \
             -A clippy::missing-const-for-fn \
             -D warnings
-    desc: 'Run cargo clippy linter'
-    silent: true
-    sources:
-      - src/**/*.rs
-      - tests/**/*.rs
-      - Cargo.toml
-    summary: |
-      Run cargo clippy with custom arguments
-
-      Internal task for running clippy. Use lint:cargo or
-      lint:check:cargo instead.
-
-      Variables:
-        CLI_ARGS: Arguments to pass to clippy
-
-  lint:eslint:
-    cmds:
-      - task: eslint
-        vars:
-          CLI_ARGS: '--fix .'
-      - echo "- ✅ eslint lint completed"
-    desc: 'Lint code using ESLint'
-    silent: true
-    summary: |
-      Lint configuration files using ESLint
-
-      Analyzes JSON, YAML, Markdown files for issues and
-      automatically fixes what it can.
-
-      Examples:
-        task lint:eslint                     # Lint config files
-
-  eslint:
-    cmds:
-      - |
-        {{.__TF_MISE_E}} npx eslint {{.CLI_ARGS}}
-    desc: 'Run ESLint'
-    silent: true
-    sources:
-      - '**/*.{json,md,toml,yaml,yml}'
-    summary: |
-      Run ESLint with custom arguments
-
-      Internal task for running ESLint. Use lint:eslint or
-      lint:check:eslint instead.
-
-      Variables:
-        CLI_ARGS: Arguments to pass to ESLint
-
-  lint:pylint:
-    aliases: [lint:py, lint:python]
-    cmds:
-      - task: pylint
-        vars:
-          CLI_ARGS: '.'
-      - echo "- ✅ pylint lint completed"
-    desc: 'Lint Python scripts using pylint'
-    silent: true
-    summary: |
-      Lint Python code using Pylint
-
-      Analyzes Python files for errors, coding standards,
-      and code smells.
-
-      Examples:
-        task lint:pylint                     # Lint Python files
-        task lint:py                         # Alias
-
-  pylint:
-    cmds:
-      - |
-        {{.__TF_MISE_E_UV_RUN}} pylint {{.CLI_ARGS}}
-    desc: 'Run pylint'
-    silent: true
-    sources:
-      - '**/*.py'
-    summary: |
-      Run Pylint with custom arguments
-
-      Internal task for running Pylint. Use lint:pylint instead.
-
-      Variables:
-        CLI_ARGS: Arguments to pass to Pylint
-
-  lint:pwshlint:
-    aliases: [lint:pwsh]
-    cmds:
-      - task: pwshlint_py
-        vars:
-          CLI_ARGS: '--fix'
-      - echo "- ✅ pwsh lint completed"
-    desc: 'Lint PowerShell scripts using PSScriptAnalyzer'
-    silent: true
-    summary: |
-      Lint PowerShell scripts using PSScriptAnalyzer
-
-      Analyzes PowerShell files for best practices and
-      common issues.
-
-      Examples:
-        task lint:pwshlint                   # Lint PowerShell files
-        task lint:pwsh                       # Alias
-
-  pwshlint_py:
-    cmds:
-      - |
-        {{.__TF_MISE_E_UV_RUN}} .scripts/pwshlint.py {{.CLI_ARGS}}
-    desc: 'Run PSScriptAnalyzer'
-    silent: true
-    sources:
-      - '**/*.ps1'
-    summary: |
-      Run PSScriptAnalyzer with custom arguments
-
-      Internal task for running PSScriptAnalyzer.
-      Use lint:pwshlint instead.
-
-      Variables:
-        CLI_ARGS: Arguments to pass to pwshlint.py
-
-  lint:shlint:
-    aliases: [lint:sh, lint:bash]
-    cmds:
-      - task: shlint_py
-        vars:
-          CLI_ARGS: '--fix'
-      - echo "- ✅ bash lint completed"
-    desc: 'Lint shell scripts using ShellCheck'
-    silent: true
-    summary: |
-      Lint shell scripts using ShellCheck
-
-      Analyzes shell scripts for common bugs and
-      portability issues.
-
-      Examples:
-        task lint:shlint                     # Lint shell scripts
-        task lint:sh                         # Alias
-        task lint:bash                       # Alias
-
-  shlint_py:
-    cmds:
-      - cmd: |
-          {{.__TF_MISE_E}} python .scripts/shlint.py {{.CLI_ARGS}}
-        platforms: [darwin, linux, windows]
-    desc: 'Run ShellCheck'
-    silent: true
-    sources:
-      - '**/*.sh'
-    summary: |
-      Run ShellCheck with custom arguments
-
-      Internal task for running ShellCheck.
-      Use lint:shlint instead.
-
-      Variables:
-        CLI_ARGS: Arguments to pass to shlint.py
 
   lint:check:
+    desc: 'Run linter without fixing'
     cmds:
       - task: lint:check:cargo
-      - task: lint:check:eslint
-      - task: lint:check:pylint
-      - task: lint:check:pwshlint
-      - task: lint:check:shlint
-      - cmd: echo "✅ Linting check completed"
-    desc: 'Run linter without fixing'
-    summary: |
-      Run all linters without fixing issues
-
-      Checks code for linting issues without modifying files.
-      Useful for CI pipelines to enforce coding standards.
-
-      Examples:
-        task lint:check                      # Check all linting
+      - task: quality:lint:check:eslint
+      - task: quality:lint:check:pylint
+      - task: quality:lint:check:pwshlint
+      - task: quality:lint:check:shlint
+      - cmd: echo "Linting check completed"
 
   lint:check:cargo:
+    desc: 'Check Rust code using cargo clippy'
     cmds:
       - task: cargo-clippy
-      - echo "- ✅ cargo lint check completed"
-    desc: 'Check Rust code using cargo clippy'
-    summary: |
-      Check Rust code using cargo clippy without fixing
-
-      Analyzes Rust code and reports issues without modifying files.
-
-      Examples:
-        task lint:check:cargo                # Check Rust linting
-
-  lint:check:eslint:
-    cmds:
-      - task: eslint
-        vars:
-          CLI_ARGS: '.'
-      - echo "- ✅ eslint lint check completed"
-    desc: 'Check code using ESLint'
-    silent: true
-    summary: |
-      Check ESLint without fixing
-
-      Analyzes configuration files and reports issues.
-
-      Examples:
-        task lint:check:eslint               # Check ESLint
-
-  lint:check:pylint:
-    aliases: [lint:check:py, lint:check:python]
-    cmds:
-      - task: lint:pylint
-      - echo "- ✅ pylint lint check completed"
-    desc: 'Check Python scripts using pylint'
-    silent: true
-    summary: |
-      Check Python code using Pylint without fixing
-
-      Analyzes Python files and reports issues.
-
-      Examples:
-        task lint:check:pylint               # Check Python linting
-        task lint:check:py                   # Alias
-
-  lint:check:pwshlint:
-    aliases: [lint:check:pwsh]
-    cmds:
-      - task: pwshlint_py
-      - echo "- ✅ pwsh lint completed"
-    desc: 'Check PowerShell scripts using PSScriptAnalyzer'
-    silent: true
-    summary: |
-      Check PowerShell scripts without fixing
-
-      Analyzes PowerShell files and reports issues.
-
-      Examples:
-        task lint:check:pwshlint             # Check PowerShell linting
-        task lint:check:pwsh                 # Alias
-
-  lint:check:shlint:
-    aliases: [lint:check:sh, lint:check:bash]
-    cmds:
-      - task: shlint_py
-      - echo "- ✅ bash lint completed"
-    desc: 'Check shell scripts using ShellCheck'
-    silent: true
-    summary: |
-      Check shell scripts without fixing
-
-      Analyzes shell scripts and reports issues.
-
-      Examples:
-        task lint:check:shlint               # Check shell linting
-        task lint:check:sh                   # Alias
+      - echo "- Cargo lint check completed"
 
   lint-staged:
-    cmds:
-      - |
-        {{.__TF_MISE_E}} npx -y lint-staged
     desc: 'Run linter on staged files and fix issues'
-    silent: true
-    summary: |
-      Run linters on git staged files only
+    cmds:
+      - task: quality:lint-staged
 
-      Runs appropriate linters on files staged for commit.
-      Used by pre-commit hooks for fast feedback.
+  duplicate-check:
+    desc: 'Check for duplicate code using jscpd'
+    cmds:
+      - task: quality:duplicate-check
 
-      Examples:
-        task lint-staged                     # Lint staged files
+  # ==========================================================================
+  # Rust-specific Tasks
+  # ==========================================================================
 
   audit-check:
+    desc: 'Check for security vulnerabilities in dependencies'
+    summary: |
+      Check for security vulnerabilities
+
+      Runs cargo audit to scan dependencies for known security issues.
+
+      Examples:
+        task audit-check
     cmds:
       - |
-        echo "🔒 Checking for security vulnerabilities..."
+        echo "Checking for security vulnerabilities..."
         if ! {{.__TF_MISE_E}} cargo audit 2>&1; then
-          echo "⚠️ cargo audit failed, attempting to refresh advisory database..."
+          echo "cargo audit failed, attempting to refresh advisory database..."
           rm -rf ~/.cargo/advisory-db
           {{.__TF_MISE_E}} cargo audit
         fi
-    desc: 'Check for security vulnerabilities in dependencies'
-    summary: |
-      Check for security vulnerabilities in dependencies
-
-      Runs cargo audit to check for known security vulnerabilities
-      in Rust dependencies. Refreshes the advisory database if needed.
-
-      Examples:
-        task audit-check                     # Check for vulnerabilities
-
-  duplicate-check:
-    cmds:
-      - |
-        {{.__TF_MISE_E}} npm run duplicate-check
-      - git add .jscpd/jscpd-badge.svg 2>/dev/null || true
-    desc: 'Check for duplicate code using jscpd'
-    summary: |
-      Check for duplicate code using jscpd
-
-      Scans the codebase for copy-pasted code blocks and
-      generates a report. Updates the duplication badge.
-
-      Examples:
-        task duplicate-check                 # Check for duplicates
 
   license-check:
-    cmds:
-      - |
-        echo "📋 Checking licenses and advisories..."
-        {{.__TF_MISE_E}} cargo deny check
     desc: 'Check license compliance and security advisories'
     summary: |
-      Check license compliance and security advisories
+      Check license compliance
 
-      Runs cargo deny to verify all dependencies have
-      acceptable licenses and no security advisories.
+      Runs cargo deny to verify all dependencies have acceptable licenses.
 
       Examples:
-        task license-check                   # Check licenses
+        task license-check
+    cmds:
+      - |
+        echo "Checking licenses and advisories..."
+        {{.__TF_MISE_E}} cargo deny check
 
-  # ============================================================================
+  # ==========================================================================
   # Test Tasks
-  # ============================================================================
+  # ==========================================================================
 
   test:
+    desc: 'Run tests with coverage'
+    summary: |
+      Run tests for the Rust project
+
+      Builds the project in debug mode and runs all tests.
+
+      Examples:
+        task test
     cmds:
       - task: build
         vars:
@@ -771,140 +337,132 @@ tasks:
       - cmd: |
           {{.__TF_MISE_E}} cargo test --all-features
       - task: test:gen-coverage
-    desc: 'Run tests with coverage'
-    summary: |
-      Run tests for the Rust project
-
-      Builds the project in debug mode and runs all tests using
-      cargo test. Generates coverage report using tarpaulin.
-
-      Examples:
-        task test                            # Run tests
 
   test:gen-coverage:
-    cmds:
-      - |
-        echo ""
-        echo "📊 Generating coverage report..."
-        echo "📊 Running tests with coverage..."
-        {{.__TF_MISE_E}} cargo tarpaulin --out Html --out Lcov --out Stdout --output-dir .coverage --exclude-files "tests/*" --all-features
-        echo ""
-        if [ -f ".coverage/index.html" ]; then
-          echo "✅ HTML coverage report: .coverage/index.html"
-        fi
-        if [ -f ".coverage/lcov.info" ]; then
-          echo "✅ LCOV coverage data: .coverage/lcov.info"
-        fi
-        echo ""
     desc: 'Generate coverage report'
-    silent: true
     summary: |
       Generate test coverage report
 
-      Generates HTML and LCOV coverage reports from test runs
-      using cargo tarpaulin.
-
-      Output is placed in .coverage/.
+      Generates HTML and LCOV coverage reports using cargo tarpaulin.
 
       Examples:
-        task test:gen-coverage               # Generate coverage
-
-  # ============================================================================
-  # Development Tools
-  # ============================================================================
-
-  run:
+        task test:gen-coverage
+    silent: true
     cmds:
       - |
-        echo "🏃 Running application..."
-        {{.__TF_MISE_E}} cargo run
-    deps:
-      - task: build
-        vars:
-          RUST_BUILD_TYPE: 'debug'
+        echo ""
+        echo "Generating coverage report..."
+        echo "Running tests with coverage..."
+        {{.__TF_MISE_E}} cargo tarpaulin --out Html --out Lcov --out Stdout --output-dir .coverage --exclude-files "tests/*" --all-features
+        echo ""
+        if [ -f ".coverage/index.html" ]; then
+          echo "HTML coverage report: .coverage/index.html"
+        fi
+        if [ -f ".coverage/lcov.info" ]; then
+          echo "LCOV coverage data: .coverage/lcov.info"
+        fi
+        echo ""
+
+  # ==========================================================================
+  # Development Tools
+  # ==========================================================================
+
+  run:
     desc: 'Run application'
     summary: |
       Build and run the application
 
-      Builds the project in debug mode and runs the resulting
-      binary using cargo run.
+      Builds the project in debug mode and runs it.
 
       Examples:
-        task run                             # Build and run
+        task run
+    deps:
+      - task: build
+        vars:
+          RUST_BUILD_TYPE: 'debug'
+    cmds:
+      - |
+        echo "Running application..."
+        {{.__TF_MISE_E}} cargo run
 
   debug:
+    desc: 'Run application with debugger (gdb/lldb)'
+    summary: |
+      Build and run application with debugger
+
+      Builds the project in debug mode and launches it in a debugger.
+
+      Examples:
+        task debug
     cmds:
       - task: build
         vars:
           RUST_BUILD_TYPE: 'debug'
       - cmd: |
           {{if eq OS "windows"}}
-          echo "⚠️ CLI debugging not supported on Windows."
-          echo "ℹ️ Please use Visual Studio Code or your IDE's debugger instead."
+          echo "CLI debugging not supported on Windows."
+          echo "Please use Visual Studio Code or your IDE's debugger instead."
           echo ""
           echo "Alternatively, install gdb via MSYS2 and run manually:"
           echo "gdb target/debug/{{.RUST_PROJECT_NAME}}.exe"
           exit 0
           {{else}}
           if command -v lldb >/dev/null 2>&1; then
-            echo "🐛 Starting lldb debugger..."
+            echo "Starting lldb debugger..."
             lldb target/debug/{{.RUST_PROJECT_NAME}}
           elif command -v gdb >/dev/null 2>&1; then
-            echo "🐛 Starting gdb debugger..."
+            echo "Starting gdb debugger..."
             gdb target/debug/{{.RUST_PROJECT_NAME}}
           else
-            echo "⚠️ No debugger found. Please install gdb or lldb."
+            echo "No debugger found. Please install gdb or lldb."
             exit 1
           fi
           {{end}}
-    desc: 'Run application with debugger (gdb/lldb)'
-    summary: |
-      Build and run application with debugger
 
-      Builds the project in debug mode and launches it in a debugger.
-      Uses lldb on macOS, gdb on Linux. Windows users should use
-      Visual Studio Code or their IDE's debugger.
-
-      Examples:
-        task debug                           # Build and debug
-
-  # ============================================================================
+  # ==========================================================================
   # Documentation Tasks
-  # ============================================================================
+  # ==========================================================================
 
   docs:
-    cmds:
-      - |
-        {{.__TF_MISE_E}} cargo doc --no-deps --all-features
     desc: 'Build documentation'
     summary: |
       Build project documentation
 
       Generates Rust documentation using cargo doc.
-      Output is placed in target/doc/.
 
       Examples:
-        task docs                            # Build docs
-
-  docs:serve:
+        task docs
     cmds:
       - |
-        {{.__TF_MISE_E}} cargo doc --open --no-deps --all-features
+        {{.__TF_MISE_E}} cargo doc --no-deps --all-features
+
+  docs:serve:
     desc: 'Serve documentation locally with live reload'
     summary: |
       Build and open documentation in browser
 
-      Generates Rust documentation and opens it in the
-      default web browser.
+      Generates Rust documentation and opens it in the default browser.
 
       Examples:
-        task docs:serve                      # Build and open docs
+        task docs:serve
+    cmds:
+      - |
+        {{.__TF_MISE_E}} cargo doc --open --no-deps --all-features
 
-  # ============================================================================
+  # ==========================================================================
   # Validation Tasks
-  # ============================================================================
+  # ==========================================================================
 
   validate:
+    desc: 'Run full CI validation pipeline'
+    summary: |
+      Run full validation pipeline
+
+      Executes the complete CI pipeline.
+
+      Examples:
+        task validate
+    silent: true
     cmds:
       - task: format
       - task: clean
@@ -917,73 +475,140 @@ tasks:
       - cmd: |
           echo ""
           echo "{{.__TF_HEADER_LINE}}"
-          echo "✅ Validation successful"
+          echo "Validation successful"
           echo "{{.__TF_HEADER_LINE}}"
           echo ""
-    desc: 'Run CI pipeline for specific build system and compiler'
-    silent: true
-    summary: |
-      Run full validation pipeline
 
-      Runs the complete CI pipeline:
-        1. Format code
-        2. Clean build artifacts
-        3. Build project
-        4. Run linters
-        5. Run application
-        6. Clean and rebuild for tests
-        7. Run tests
-        8. Build documentation
+  # ==========================================================================
+  # Utility Tasks
+  # ==========================================================================
+
+  print:env:
+    desc: 'Print current build environment variables'
+    cmds:
+      - task: common:print:env
+
+  # ==========================================================================
+  # Dependency Tasks (override to include Rust-specific tasks)
+  # ==========================================================================
+
+  deps:sync:
+    desc: 'Install all project dependencies'
+    summary: |
+      Install all project dependencies
+
+      Installs all dependencies in order:
+        1. Mise tools (compilers, runtimes, build systems)
+        2. Node.js packages (linters, formatters)
+        3. Python packages (build scripts, docs)
+        4. Rust dependencies (rustfmt, clippy, cargo tools)
+
+      Run this after cloning the repository.
 
       Examples:
-        task validate                        # Run full validation
-  # ============================================================================
-  # Dependencies
-  # ============================================================================
+        task deps:sync
+    cmds:
+      - task: deps:sync:mise
+      - task: deps:sync:npm
+      - task: deps:sync:uv
+      - task: deps:sync:rust
+
+  deps:sync:mise:
+    cmds:
+      - task: _deps:sync:mise
+
+  deps:sync:npm:
+    cmds:
+      - task: _deps:sync:npm
+
+  deps:sync:uv:
+    cmds:
+      - task: _deps:sync:uv
 
   deps:clean:
-    cmds:
-      - task: deps:clean:mise
-      - task: deps:clean:cargo
-      - task: deps:clean:npm
-      - task: deps:clean:uv
     desc: 'Clean all project dependencies'
     summary: |
       Clean all project dependencies
 
       Removes all installed dependencies:
         - Mise tool installations
-        - Cargo dependencies and lock file
         - Node.js node_modules
         - Python virtual environment
+        - Cargo target directory and lock file
 
       Examples:
-        task deps:clean                      # Clean all deps
+        task deps:clean
+    cmds:
+      - task: deps:clean:mise
+      - task: deps:clean:npm
+      - task: deps:clean:uv
+      - task: deps:clean:cargo
 
   deps:clean:mise:
     cmds:
-      - echo "🧹 Cleaning Mise dependencies..."
-      - cmd: |
-          rm -rf \
-            ~/.local/share/mise/installs \
-            ~/AppData/mise/installs
-      - echo "✓ Mise environment cleaned"
-    desc: 'Clean Mise dependencies'
-    summary: |
-      Clean Mise tool installations
+      - task: _deps:clean:mise
 
-      Removes all tools installed by Mise from the global
-      installation directory.
+  deps:clean:npm:
+    cmds:
+      - task: _deps:clean:npm
+
+  deps:clean:uv:
+    cmds:
+      - task: _deps:clean:uv
+
+  deps:refresh:
+    desc: 'Refresh all project dependencies'
+    summary: |
+      Update all project dependencies
+
+      Updates all dependencies to their latest compatible versions:
+        1. Mise tools
+        2. Node.js packages
+        3. Python packages
+        4. Rust packages
 
       Examples:
-        task deps:clean:mise                 # Clean Mise tools
+        task deps:refresh
+    cmds:
+      - task: deps:refresh:mise
+      - task: deps:refresh:npm
+      - task: deps:refresh:uv
+      - task: deps:refresh:rust
 
-  deps:clean:cargo:
+  deps:refresh:mise:
+    cmds:
+      - task: _deps:refresh:mise
+
+  deps:refresh:npm:
+    cmds:
+      - task: _deps:refresh:npm
+
+  deps:refresh:uv:
+    cmds:
+      - task: _deps:refresh:uv
+
+  # ==========================================================================
+  # Rust-specific Dependency Tasks
+  # ==========================================================================
+
+  deps:sync:rust:
+    desc: 'Install Rust dependencies'
+    summary: |
+      Install Rust dependencies
+
+      Installs rustfmt, clippy components and cargo tools.
+
+      Examples:
+        task deps:sync:rust
     cmds:
       - |
-        echo "🧹 Cleaning Cargo dependencies..."
-        rm -rf Cargo.lock target
-        echo "✓ Cargo environment cleaned"
+        echo "Installing Rust dependencies..."
+        {{.__TF_MISE_E}} rustup component add rustfmt clippy
+        {{.__TF_MISE_E}} cargo fetch
+        {{.__TF_MISE_E}} cargo install --force cargo-tarpaulin cargo-deny cargo-audit
+        echo "Rust environment ready"
+
+  deps:clean:cargo:
     desc: 'Clean Cargo dependencies'
     summary: |
       Clean Cargo dependencies
@@ -991,209 +616,25 @@ tasks:
       Removes Cargo.lock and target directory.
 
       Examples:
-        task deps:clean:cargo                # Clean Cargo deps
-
-  deps:clean:npm:
+        task deps:clean:cargo
     cmds:
       - |
-        echo "🧹 Cleaning NodeJs dependencies..."
-        rm -rf node_modules package-lock.json
-        echo "✓ NodeJs environment cleaned"
-    desc: 'Clean NodeJs dependencies'
-    summary: |
-      Clean Node.js dependencies
-
-      Removes node_modules directory and package-lock.json.
-
-      Examples:
-        task deps:clean:npm                  # Clean npm deps
-
-  deps:clean:uv:
-    cmds:
-      - |
-        echo "🧹 Cleaning Python dependencies..."
-        rm -rf .venv uv.lock
-        echo "✓ Python environment cleaned"
-    desc: 'Clean Python dependencies'
-    summary: |
-      Clean Python dependencies
-
-      Removes the virtual environment and uv lock file.
-
-      Examples:
-        task deps:clean:uv                   # Clean Python deps
-
-  deps:sync:
-    cmds:
-      - task: deps:sync:mise
-      - task: deps:sync:rust
-      - task: deps:sync:npm
-      - task: deps:sync:uv
-    desc: 'Install all project dependencies'
-    summary: |
-      Install all project dependencies
-
-      Installs all dependencies in order:
-        1. Mise tools (compilers, build systems)
-        2. Rust toolchain and cargo tools
-        3. Node.js packages (linters, formatters)
-        4. Python packages (build scripts, docs)
-
-      Examples:
-        task deps:sync                       # Install all deps
-
-  deps:sync:mise:
-    cmds:
-      - |
-        echo "📦 Installing Mise dependencies..."
-        mise trust && mise install --yes && mise lock
-        echo "✓ Mise environment ready"
-    desc: 'Install Mise dependencies'
-    summary: |
-      Install Mise tool dependencies
-
-      Installs all tools defined in .mise.toml including
-      compilers, build systems, and development tools.
-
-      Examples:
-        task deps:sync:mise                  # Install Mise tools
-
-  deps:sync:rust:
-    cmds:
-      - |
-        echo "📦 Installing Rust dependencies..."
-        {{.__TF_MISE_E}} rustup component add rustfmt clippy
-        {{.__TF_MISE_E}} cargo fetch
-        {{.__TF_MISE_E}} cargo install --force cargo-tarpaulin cargo-deny cargo-audit
-        echo "✓ Rust environment ready"
-    desc: 'Install Rust dependencies'
-    summary: |
-      Install Rust dependencies
-
-      Installs rustfmt, clippy components and cargo tools:
-        - cargo-tarpaulin (coverage)
-        - cargo-deny (license/advisory checks)
-        - cargo-audit (security audit)
-
-      Examples:
-        task deps:sync:rust                  # Install Rust deps
-
-  deps:sync:npm:
-    cmds:
-      - |
-        echo "📦 Installing NodeJs dependencies..."
-        {{.__TF_MISE_E}} npm install
-        {{.__TF_MISE_E}} npx husky
-        echo "✓ NodeJs environment ready"
-    desc: 'Install NodeJs dependencies'
-    summary: |
-      Install Node.js dependencies
-
-      Installs npm packages from package.json and sets up
-      Husky git hooks.
-
-      Examples:
-        task deps:sync:npm                   # Install npm packages
-
-  deps:sync:uv:
-    cmds:
-      - |
-        echo "📦 Installing Python dependencies..."
-        {{.__TF_MISE_E}} uv sync
-        echo "✓ Python environment ready"
-    desc: 'Install Python dependencies'
-    summary: |
-      Install Python dependencies
-
-      Creates a virtual environment and installs packages
-      from pyproject.toml using uv.
-
-      Examples:
-        task deps:sync:uv                    # Install Python packages
-
-  deps:refresh:
-    cmds:
-      - task: deps:refresh:mise
-      - task: deps:refresh:rust
-      - task: deps:refresh:npm
-      - task: deps:refresh:uv
-    desc: 'Refresh all project dependencies'
-    summary: |
-      Update all project dependencies
-
-      Updates all dependencies to their latest compatible versions:
-        1. Mise tools
-        2. Rust/Cargo packages
-        3. Node.js packages
-        4. Python packages
-
-      Examples:
-        task deps:refresh                    # Update all deps
-
-  deps:refresh:mise:
-    cmds:
-      - |
-        echo "🔄 Refreshing Mise packages..."
-        touch mise.lock
-        mise trust && mise upgrade
-        echo "✓ Packages refreshed"
-    desc: 'Refresh all Mise packages (update dependencies)'
-    summary: |
-      Update Mise tools to latest versions
-
-      Upgrades all Mise-managed tools to their latest versions
-      as allowed by .mise.toml constraints.
-
-      Examples:
-        task deps:refresh:mise               # Update Mise tools
+        echo "Cleaning Cargo dependencies..."
+        rm -rf Cargo.lock target
+        echo "Cargo environment cleaned"
 
   deps:refresh:rust:
-    cmds:
-      - |
-        echo "🔄 Refreshing Rust packages..."
-        {{.__TF_MISE_E}} cargo update
-        {{.__TF_MISE_E}} cargo install --force cargo-tarpaulin cargo-deny cargo-audit
-        echo "✓ Packages refreshed"
     desc: 'Refresh all Rust packages (update dependencies)'
     summary: |
       Update Rust packages to latest versions
 
-      Updates all Cargo dependencies to their latest versions
-      as allowed by Cargo.toml constraints. Reinstalls cargo tools.
+      Updates all Cargo dependencies.
 
       Examples:
-        task deps:refresh:rust               # Update Rust packages
-
-  deps:refresh:npm:
+        task deps:refresh:rust
     cmds:
       - |
-        echo "🔄 Refreshing NodeJs packages..."
-        {{.__TF_MISE_E}} npm outdated \
-          && {{.__TF_MISE_E}} npm update \
-          && {{.__TF_MISE_E}} npm audit fix
-        echo "✓ Packages refreshed"
-    desc: 'Refresh all NodeJs packages (update dependencies)'
-    summary: |
-      Update Node.js packages to latest versions
-
-      Shows outdated packages, updates them, and runs
-      security audit fixes.
-
-      Examples:
-        task deps:refresh:npm                # Update npm packages
-
-  deps:refresh:uv:
-    cmds:
-      - |
-        echo "🔄 Refreshing Python packages..."
-        {{.__TF_MISE_E}} uv sync --upgrade
-        echo "✓ Packages refreshed"
-    desc: 'Refresh all Python packages (update dependencies)'
-    summary: |
-      Update Python packages to latest versions
-
-      Updates all Python packages to their latest versions
-      as allowed by pyproject.toml constraints.
-
-      Examples:
-        task deps:refresh:uv                 # Update Python packages
+        echo "Refreshing Rust packages..."
+        {{.__TF_MISE_E}} cargo update
+        {{.__TF_MISE_E}} cargo install --force cargo-tarpaulin cargo-deny cargo-audit
+        echo "Packages refreshed"

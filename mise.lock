@@ -21,8 +21,3 @@ backend = "core:rust"
 [[tools.uv]]
 version = "0.9.18"
 backend = "aqua:astral-sh/uv[cargo:cargo-tarpaulin=latest,cargo:cargo-audit=latest,cargo:cargo-deny=latest]"
-
-[tools.uv.platforms.windows-x64]
-checksum = "sha256:28cbe5d30907a774bfe27a517a39b494ec6f7d3816bda8bbf6f9645490449182"
-size = 21509695
-url = "https://github.com/astral-sh/uv/releases/download/0.9.18/uv-x86_64-pc-windows-msvc.zip"
