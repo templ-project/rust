@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.2 (2026-01-03)
+
+### Bug Fixes
+
+* updated readme ([60e67dc](https://github.com/templ-project/rust/commit/60e67dc896e91923acd0c9d1e475cfd558e97e7c))
+
 ## 1.2.1 (2025-12-30)
 
 ### Bug Fixes
