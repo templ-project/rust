@@ -34,4 +34,4 @@ targets:
     target: x86_64-pc-windows-msvc
   - os: windows
     arch: i686
-    target: i686-win7-windows-msvc
+    target: i686-pc-windows-msvc
