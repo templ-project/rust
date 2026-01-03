@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.3 (2026-01-03)
+
+### Bug Fixes
+
+* fixed release/build dependencies ([8110797](https://github.com/templ-project/rust/commit/81107974c032aef86d811691505e4a39a6599783))
+
 ## 1.2.2 (2026-01-03)
 
 ### Bug Fixes

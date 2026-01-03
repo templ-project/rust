@@ -3,7 +3,7 @@ dev-dependencies = {}
 
 [package]
 name = "rust-template"
-version = "1.2.2"
+version = "1.2.3"
 authors = ["Templ Project"]
 edition = "2021"
 rust-version = "1.75.0"
